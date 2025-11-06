@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, TrendingUp, TrendingDown, RefreshCw, Download, Loader2 } from 'lucide-react';
+import { ArrowLeft, TrendingUp, TrendingDown, RefreshCw, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -8,15 +8,12 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ReferenceLine, ResponsiveContainer } from 'recharts';
-import jsPDF from 'jspdf';
-import html2canvas from 'html2canvas';
 
 export default function ResultsPage() {
   const { baselineId } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState(false);
   const [data, setData] = useState<any>(null);
 
   useEffect(() => {
@@ -66,183 +63,58 @@ export default function ResultsPage() {
     }
   };
 
-  const exportToPDF = async () => {
+  const exportToCSV = () => {
     if (!data) return;
-    
-    const { baseline, results, competitors } = data;
-    setExporting(true);
-    try {
-      const pdf = new jsPDF('p', 'mm', 'a4');
-      const pageWidth = pdf.internal.pageSize.getWidth();
-      const pageHeight = pdf.internal.pageSize.getHeight();
-      let yPos = 20;
+    const { baseline, results} = data;
 
-      // Header
-      pdf.setFontSize(24);
-      pdf.setTextColor(59, 130, 246);
-      pdf.text('AI TRUEST™', pageWidth / 2, yPos, { align: 'center' });
-      
-      yPos += 8;
-      pdf.setFontSize(16);
-      pdf.setTextColor(0, 0, 0);
-      pdf.text('Pricing Analysis Report', pageWidth / 2, yPos, { align: 'center' });
-      
-      yPos += 15;
-      pdf.setFontSize(12);
-      pdf.setTextColor(100, 100, 100);
-      pdf.text(`Generated: ${new Date().toLocaleString()}`, pageWidth / 2, yPos, { align: 'center' });
+    const csvContent = `AI TRUEST Pricing Analysis Report
+Generated: ${new Date().toLocaleString()}
 
-      // Product Info
-      yPos += 15;
-      pdf.setFontSize(14);
-      pdf.setTextColor(0, 0, 0);
-      pdf.text('Product Information', 20, yPos);
-      
-      yPos += 8;
-      pdf.setFontSize(10);
-      pdf.text(`Product: ${baseline.product_name}`, 20, yPos);
-      yPos += 6;
-      pdf.text(`Category: ${baseline.category}`, 20, yPos);
-      yPos += 6;
-      pdf.text(`Currency: ${baseline.currency}`, 20, yPos);
+PRODUCT INFORMATION
+Product Name,${baseline.product_name}
+Category,${baseline.category}
+Currency,${baseline.currency}
 
-      // Pricing Recommendation
-      yPos += 12;
-      pdf.setFontSize(14);
-      pdf.text('Pricing Recommendation', 20, yPos);
-      
-      yPos += 8;
-      pdf.setFontSize(10);
-      pdf.text(`Current Price: ${baseline.currency} ${baseline.current_price.toFixed(2)}`, 20, yPos);
-      yPos += 6;
-      pdf.setTextColor(59, 130, 246);
-      pdf.text(`Optimal Price: ${baseline.currency} ${results.optimal_price.toFixed(2)} ⭐`, 20, yPos);
-      pdf.setTextColor(0, 0, 0);
-      yPos += 6;
-      pdf.text(`Suggested Price: ${baseline.currency} ${results.suggested_price.toFixed(2)}`, 20, yPos);
-      yPos += 6;
-      const priceChange = ((results.suggested_price - baseline.current_price) / baseline.current_price) * 100;
-      pdf.text(`Price Change: ${priceChange > 0 ? '+' : ''}${priceChange.toFixed(1)}%`, 20, yPos);
+PRICING RECOMMENDATION
+Current Price,${baseline.current_price}
+Optimal Price,${results.optimal_price}
+Suggested Price,${results.suggested_price}
+Price Change,${(((results.suggested_price - baseline.current_price) / baseline.current_price) * 100).toFixed(2)}%
 
-      // Profit Analysis
-      yPos += 12;
-      pdf.setFontSize(14);
-      pdf.text('Profit Analysis', 20, yPos);
-      
-      yPos += 8;
-      pdf.setFontSize(10);
-      const currentProfit = (baseline.current_price - baseline.cost_per_unit) * baseline.current_quantity;
-      pdf.text(`Current Monthly Profit: ${baseline.currency} ${currentProfit.toFixed(2)}`, 20, yPos);
-      yPos += 6;
-      pdf.setTextColor(34, 197, 94);
-      pdf.text(`Expected Monthly Profit: ${baseline.currency} ${results.expected_monthly_profit?.toFixed(2) || '0.00'}`, 20, yPos);
-      yPos += 6;
-      pdf.text(`Profit Increase: +${baseline.currency} ${results.profit_increase_amount?.toFixed(2)} (+${results.profit_increase_percent?.toFixed(1)}%)`, 20, yPos);
-      pdf.setTextColor(0, 0, 0);
+PROFIT ANALYSIS
+Current Monthly Profit,${(baseline.current_price - baseline.cost_per_unit) * baseline.current_quantity}
+Expected Monthly Profit,${results.expected_monthly_profit || 0}
+Profit Increase,${results.profit_increase_amount || 0}
+Profit Increase %,${results.profit_increase_percent || 0}%
 
-      // Elasticity Details
-      yPos += 12;
-      pdf.setFontSize(14);
-      pdf.text('Elasticity Calculation', 20, yPos);
-      
-      yPos += 8;
-      pdf.setFontSize(10);
-      pdf.text(`Base Elasticity: ${results.base_elasticity.toFixed(3)} (${baseline.category})`, 20, yPos);
-      yPos += 6;
-      pdf.text(`SAMA Inflation Rate: ${(results.inflation_rate * 100).toFixed(2)}%`, 20, yPos);
-      yPos += 6;
-      pdf.text(`Inflation Adjustment: ×${results.inflation_adjustment.toFixed(3)}`, 20, yPos);
-      yPos += 6;
-      pdf.text(`Competitor Factor: ×${results.competitor_factor.toFixed(3)}`, 20, yPos);
-      yPos += 6;
-      pdf.setTextColor(59, 130, 246);
-      pdf.text(`Calibrated Elasticity: ${results.calibrated_elasticity.toFixed(3)}`, 20, yPos);
-      pdf.setTextColor(0, 0, 0);
+ELASTICITY CALCULATION
+Base Elasticity,${results.base_elasticity}
+SAMA Inflation Rate,${(results.inflation_rate * 100).toFixed(2)}%
+Inflation Adjustment,${results.inflation_adjustment}
+Competitor Factor,${results.competitor_factor}
+Calibrated Elasticity,${results.calibrated_elasticity}
 
-      // Market Positioning (if available)
-      if (results.market_average) {
-        yPos += 12;
-        pdf.setFontSize(14);
-        pdf.text('Market Positioning', 20, yPos);
-        
-        yPos += 8;
-        pdf.setFontSize(10);
-        pdf.text(`Market Average: ${baseline.currency} ${results.market_average.toFixed(2)}`, 20, yPos);
-        yPos += 6;
-        pdf.text(`Market Range: ${baseline.currency} ${results.market_lowest.toFixed(2)} - ${results.market_highest.toFixed(2)}`, 20, yPos);
-        yPos += 6;
-        pdf.text(`Position vs Market: ${results.position_vs_market > 0 ? '+' : ''}${results.position_vs_market?.toFixed(1)}%`, 20, yPos);
-      }
+MARKET POSITIONING
+Market Average,${results.market_average || 'N/A'}
+Market Lowest,${results.market_lowest || 'N/A'}
+Market Highest,${results.market_highest || 'N/A'}
+Position vs Market,${results.position_vs_market ? results.position_vs_market.toFixed(2) + '%' : 'N/A'}
+`;
 
-      // Competitor Data
-      if (competitors && competitors.length > 0) {
-        yPos += 12;
-        if (yPos > pageHeight - 40) {
-          pdf.addPage();
-          yPos = 20;
-        }
-        
-        pdf.setFontSize(14);
-        pdf.text('Competitive Intelligence', 20, yPos);
-        
-        yPos += 8;
-        pdf.setFontSize(10);
-        
-        competitors.forEach((comp: any) => {
-          if (yPos > pageHeight - 30) {
-            pdf.addPage();
-            yPos = 20;
-          }
-          
-          pdf.text(`${comp.marketplace.toUpperCase()}: `, 20, yPos);
-          if (comp.fetch_status === 'success') {
-            pdf.text(`Low: ${comp.currency} ${comp.lowest_price?.toFixed(2)}, Avg: ${comp.currency} ${comp.average_price?.toFixed(2)}, High: ${comp.currency} ${comp.highest_price?.toFixed(2)}`, 25, yPos + 5);
-            yPos += 10;
-          } else {
-            pdf.text('No data available', 25, yPos + 5);
-            yPos += 10;
-          }
-        });
-      }
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `AI-TRUEST-${baseline.product_name.replace(/[^a-z0-9]/gi, '-')}-${new Date().toISOString().split('T')[0]}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
 
-      // Warning
-      if (results.has_warning) {
-        yPos += 10;
-        if (yPos > pageHeight - 30) {
-          pdf.addPage();
-          yPos = 20;
-        }
-        pdf.setFontSize(12);
-        pdf.setTextColor(234, 179, 8);
-        pdf.text('⚠ Warning:', 20, yPos);
-        yPos += 6;
-        pdf.setFontSize(9);
-        const lines = pdf.splitTextToSize(results.warning_message, pageWidth - 40);
-        pdf.text(lines, 20, yPos);
-      }
-
-      // Footer
-      pdf.setFontSize(8);
-      pdf.setTextColor(150, 150, 150);
-      pdf.text('AI TRUEST™ - Intelligent Pricing Optimization System', pageWidth / 2, pageHeight - 10, { align: 'center' });
-
-      // Save
-      pdf.save(`AI-TRUEST-${baseline.product_name.replace(/[^a-z0-9]/gi, '-')}-${new Date().toISOString().split('T')[0]}.pdf`);
-
-      toast({
-        title: 'Success',
-        description: 'PDF report exported successfully',
-      });
-    } catch (error) {
-      console.error('PDF export failed:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to export PDF report',
-        variant: 'destructive',
-      });
-    } finally {
-      setExporting(false);
-    }
+    toast({
+      title: 'Success',
+      description: 'Report exported successfully',
+    });
   };
 
   if (loading) {
@@ -523,18 +395,9 @@ export default function ResultsPage() {
             <RefreshCw className="w-4 h-4 mr-2" />
             Refresh Competitor Data
           </Button>
-          <Button size="lg" variant="outline" className="flex-1 sm:flex-none" onClick={exportToPDF} disabled={exporting}>
-            {exporting ? (
-              <>
-                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                Exporting...
-              </>
-            ) : (
-              <>
-                <Download className="w-4 h-4 mr-2" />
-                Export Report (PDF)
-              </>
-            )}
+          <Button size="lg" variant="outline" className="flex-1 sm:flex-none" onClick={exportToCSV}>
+            <Download className="w-4 h-4 mr-2" />
+            Export Report (CSV)
           </Button>
         </div>
       </div>
