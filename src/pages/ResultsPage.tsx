@@ -456,7 +456,7 @@ Position vs Market,${results.position_vs_market ? results.position_vs_market.toF
             © 2025 AI Truest, Saudi Arabia. All Rights Reserved.
           </p>
           <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
-            <span>📩 info@paybacksa.com</span>
+            <span>📩 <a href="mailto:info@paybacksa.com" className="hover:text-primary hover:underline">info@paybacksa.com</a></span>
             <span>•</span>
             <span>📍 Riyadh, Saudi Arabia</span>
           </div>
