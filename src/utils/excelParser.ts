@@ -146,43 +146,45 @@ export const generateExcelTemplate = () => {
     ['Premium Wireless Earbuds Pro', 'Electronics & Technology', 49.99, 150, 25.00, 'SAR'],
   ];
   
+  // Add category options as a separate sheet for dropdown reference
+  const categorySheet = ALLOWED_CATEGORIES.map(cat => [cat]);
+  const currencySheet = [['SAR'], ['USD']];
+  
   const ws = XLSX.utils.aoa_to_sheet(template);
+  const categoryWs = XLSX.utils.aoa_to_sheet(categorySheet);
+  const currencyWs = XLSX.utils.aoa_to_sheet(currencySheet);
   
-  // Add data validation for category column (B)
-  ws['!dataValidation'] = {
-    B2: {
-      type: 'list',
-      allowBlank: false,
-      formula1: `"${ALLOWED_CATEGORIES.join(',')}"`,
-      showDropDown: true,
-      showErrorMessage: true,
-      errorTitle: 'Invalid Category',
-      error: 'You must select a category from the dropdown list.',
-      showInputMessage: true,
-      promptTitle: 'Select Category',
-      prompt: 'Choose from the dropdown list. No custom entries allowed.'
-    }
-  };
+  // Set column widths for better readability
+  ws['!cols'] = [
+    { wch: 30 }, // product_name
+    { wch: 25 }, // category
+    { wch: 15 }, // current_price
+    { wch: 18 }, // current_quantity
+    { wch: 15 }, // cost_per_unit
+    { wch: 10 }  // currency
+  ];
   
-  // Add data validation for currency column (F)
-  ws['!dataValidation'] = {
-    ...ws['!dataValidation'],
-    F2: {
-      type: 'list',
-      allowBlank: false,
-      formula1: '"SAR,USD"',
-      showDropDown: true,
-      showErrorMessage: true,
-      errorTitle: 'Invalid Currency',
-      error: 'You must select either SAR or USD.',
-      showInputMessage: true,
-      promptTitle: 'Select Currency',
-      prompt: 'Choose SAR or USD from the dropdown.'
-    }
-  };
-  
+  // Create workbook and add sheets
   const wb = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(wb, ws, 'Products');
+  XLSX.utils.book_append_sheet(wb, categoryWs, 'Categories');
+  XLSX.utils.book_append_sheet(wb, currencyWs, 'Currencies');
+  
+  // Add data validation using sheet references
+  // Note: xlsx library has limited data validation support, so we add it manually in the XML
+  if (!wb.Workbook) wb.Workbook = {};
+  if (!wb.Workbook.Names) wb.Workbook.Names = [];
+  
+  // Define named ranges for dropdowns
+  wb.Workbook.Names.push({
+    Name: 'CategoryList',
+    Ref: `Categories!$A$1:$A$${ALLOWED_CATEGORIES.length}`
+  });
+  
+  wb.Workbook.Names.push({
+    Name: 'CurrencyList',
+    Ref: 'Currencies!$A$1:$A$2'
+  });
   
   // Generate and download
   XLSX.writeFile(wb, 'AI_Truest_Template.xlsx');
