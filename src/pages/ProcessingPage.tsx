@@ -97,69 +97,76 @@ export default function ProcessingPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-subtle p-4">
+    <div className="min-h-screen bg-gradient-hero p-4 animate-fade-in">
       <div className="max-w-2xl mx-auto pt-8">
         {/* Back Button */}
         <Button
           variant="outline"
           onClick={() => navigate('/')}
-          className="mb-6"
+          className="mb-6 hover:shadow-lg transition-all animate-slide-up"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Upload
         </Button>
 
-        <Card className="w-full p-8 shadow-elegant">
-        <div className="text-center mb-8">
-          <Loader2 className="w-16 h-16 mx-auto mb-4 text-primary animate-spin" />
-          <h1 className="text-3xl font-bold mb-2">Processing Your Data</h1>
-          <p className="text-muted-foreground">
-            This typically takes 30-60 seconds
+        <Card className="w-full p-8 md:p-10 shadow-elegant hover:shadow-glow transition-all animate-scale-in backdrop-blur-sm bg-white/95">
+        <div className="text-center mb-10">
+          <div className="relative inline-block mb-6">
+            <div className="absolute inset-0 bg-primary/20 rounded-full animate-ping"></div>
+            <Loader2 className="w-20 h-20 mx-auto text-primary animate-spin relative" />
+          </div>
+          <h1 className="text-4xl font-bold mb-3 bg-gradient-primary bg-clip-text text-transparent">
+            Processing Your Data
+          </h1>
+          <p className="text-lg text-muted-foreground">
+            ✨ AI analysis in progress • Typically 30-60 seconds
           </p>
         </div>
 
         <div className="space-y-4">
-          <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/30">
+          <div className="flex items-center gap-4 p-5 rounded-xl bg-gradient-card border border-primary/10 hover:border-primary/30 transition-all">
             {getStatusIcon(status.upload)}
             <div className="flex-1">
-              <p className="font-medium">Excel uploaded successfully</p>
-              <p className="text-sm text-muted-foreground">Product data validated</p>
+              <p className="font-semibold text-lg">Excel uploaded successfully</p>
+              <p className="text-sm text-muted-foreground">✓ Product data validated</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/30">
+          <div className="flex items-center gap-4 p-5 rounded-xl bg-gradient-card border border-primary/10 hover:border-primary/30 transition-all">
             {getStatusIcon(status.inflation)}
             <div className="flex-1">
-              <p className="font-medium">Fetching SAMA inflation rate</p>
-              <p className="text-sm text-muted-foreground">Retrieving latest economic data</p>
+              <p className="font-semibold text-lg">Fetching SAMA inflation rate</p>
+              <p className="text-sm text-muted-foreground">📊 Retrieving latest economic data</p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/30">
+          <div className="flex items-center gap-4 p-5 rounded-xl bg-gradient-card border border-primary/10 hover:border-primary/30 transition-all">
             {getStatusIcon(status.competitors)}
             <div className="flex-1">
-              <p className="font-medium">Searching competitor prices</p>
+              <p className="font-semibold text-lg">Searching competitor prices</p>
               <p className="text-sm text-muted-foreground">
-                Amazon, Noon, Extra, Jarir...
+                🛒 Amazon, Noon, Extra, Jarir...
               </p>
             </div>
           </div>
 
-          <div className="flex items-center gap-3 p-4 rounded-lg bg-muted/30">
+          <div className="flex items-center gap-4 p-5 rounded-xl bg-gradient-card border border-primary/10 hover:border-primary/30 transition-all">
             {getStatusIcon(status.calculation)}
             <div className="flex-1">
-              <p className="font-medium">Calculating optimal price</p>
-              <p className="text-sm text-muted-foreground">AI elasticity calibration in progress</p>
+              <p className="font-semibold text-lg">Calculating optimal price</p>
+              <p className="text-sm text-muted-foreground">🤖 AI elasticity calibration in progress</p>
             </div>
           </div>
         </div>
 
-        <div className="mt-8 p-4 bg-primary/5 rounded-lg border border-primary/20">
-          <div className="flex gap-2">
-            <AlertCircle className="w-5 h-5 text-primary flex-shrink-0 mt-0.5" />
-            <div className="text-sm">
-              <p className="font-medium text-primary mb-1">What's happening?</p>
-              <p className="text-muted-foreground">
+        <div className="mt-8 p-6 bg-gradient-card rounded-xl border-2 border-primary/20 shadow-lg">
+          <div className="flex gap-3">
+            <div className="p-2 bg-primary/10 rounded-lg h-fit">
+              <AlertCircle className="w-6 h-6 text-primary" />
+            </div>
+            <div>
+              <p className="font-bold text-lg text-primary mb-2">What's happening?</p>
+              <p className="text-muted-foreground leading-relaxed">
                 Our AI is analyzing your product against real market data, calculating
                 demand elasticity with SAMA inflation adjustments, and calibrating the
                 optimal price to maximize your profits.

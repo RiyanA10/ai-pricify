@@ -8,99 +8,110 @@ All colors MUST be HSL.
 
 @layer base {
   :root {
-    /* Professional Analytics Platform Colors */
-    --background: 210 20% 98%;
-    --foreground: 215 25% 15%;
+    /* Modern Analytics Platform Colors */
+    --background: 220 25% 97%;
+    --foreground: 220 20% 10%;
 
     --card: 0 0% 100%;
-    --card-foreground: 215 25% 15%;
+    --card-foreground: 220 20% 10%;
 
     --popover: 0 0% 100%;
-    --popover-foreground: 215 25% 15%;
+    --popover-foreground: 220 20% 10%;
 
-    /* Trustworthy Blue - Primary brand */
-    --primary: 210 100% 45%;
+    /* Vibrant Blue - Primary brand */
+    --primary: 220 90% 56%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 210 100% 55%;
+    --primary-glow: 220 90% 65%;
+    --primary-subtle: 220 90% 96%;
 
-    /* Data Emphasis - Teal accents */
-    --secondary: 185 75% 50%;
+    /* Purple accent */
+    --secondary: 270 70% 60%;
     --secondary-foreground: 0 0% 100%;
+    --secondary-subtle: 270 70% 96%;
 
-    --muted: 210 20% 94%;
-    --muted-foreground: 215 15% 45%;
+    --muted: 220 20% 92%;
+    --muted-foreground: 220 15% 40%;
 
-    --accent: 185 75% 50%;
+    --accent: 280 65% 60%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 75% 55%;
+    --destructive: 0 72% 51%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 145 65% 45%;
+    --success: 142 71% 45%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 40 95% 55%;
-    --warning-foreground: 215 25% 15%;
+    --warning: 38 92% 50%;
+    --warning-foreground: 0 0% 100%;
 
-    --border: 210 20% 88%;
-    --input: 210 20% 88%;
-    --ring: 210 100% 45%;
+    --border: 220 20% 88%;
+    --input: 220 20% 88%;
+    --ring: 220 90% 56%;
 
-    --radius: 0.75rem;
+    --radius: 1rem;
 
-    /* Gradients for hero sections */
-    --gradient-primary: linear-gradient(135deg, hsl(210 100% 45%), hsl(185 75% 50%));
-    --gradient-subtle: linear-gradient(180deg, hsl(210 20% 98%), hsl(210 20% 96%));
+    /* Enhanced Gradients */
+    --gradient-primary: linear-gradient(135deg, hsl(220 90% 56%) 0%, hsl(270 70% 60%) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(220 25% 97%) 0%, hsl(220 25% 95%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(220 90% 56%) 0%, hsl(270 70% 60%) 50%, hsl(280 65% 60%) 100%);
+    --gradient-card: linear-gradient(135deg, hsl(220 90% 96%) 0%, hsl(270 70% 96%) 100%);
     
-    /* Shadows with brand colors */
-    --shadow-elegant: 0 10px 30px -10px hsl(210 100% 45% / 0.15);
-    --shadow-card: 0 2px 8px hsl(210 20% 15% / 0.08);
+    /* Advanced Shadows */
+    --shadow-elegant: 0 20px 50px -15px hsl(220 90% 56% / 0.25);
+    --shadow-card: 0 4px 20px hsl(220 20% 15% / 0.08);
+    --shadow-glow: 0 0 50px hsl(220 90% 56% / 0.2);
     
-    /* Animations */
+    /* Smooth Animations */
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    --transition-bounce: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
   }
 
   .dark {
-    --background: 215 30% 8%;
-    --foreground: 210 15% 92%;
+    --background: 220 30% 8%;
+    --foreground: 220 15% 92%;
 
-    --card: 215 25% 12%;
-    --card-foreground: 210 15% 92%;
+    --card: 220 25% 12%;
+    --card-foreground: 220 15% 92%;
 
-    --popover: 215 25% 12%;
-    --popover-foreground: 210 15% 92%;
+    --popover: 220 25% 12%;
+    --popover-foreground: 220 15% 92%;
 
-    --primary: 210 100% 55%;
+    --primary: 220 90% 60%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 210 100% 65%;
+    --primary-glow: 220 90% 70%;
+    --primary-subtle: 220 90% 15%;
 
-    --secondary: 185 70% 45%;
+    --secondary: 270 70% 65%;
     --secondary-foreground: 0 0% 100%;
+    --secondary-subtle: 270 70% 15%;
 
-    --muted: 215 25% 18%;
-    --muted-foreground: 210 15% 65%;
+    --muted: 220 25% 18%;
+    --muted-foreground: 220 15% 65%;
 
-    --accent: 185 70% 45%;
+    --accent: 280 65% 65%;
     --accent-foreground: 0 0% 100%;
 
-    --destructive: 0 70% 50%;
+    --destructive: 0 72% 56%;
     --destructive-foreground: 0 0% 100%;
 
-    --success: 145 60% 40%;
+    --success: 142 71% 50%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 40 90% 50%;
-    --warning-foreground: 215 30% 8%;
+    --warning: 38 92% 55%;
+    --warning-foreground: 0 0% 100%;
 
-    --border: 215 25% 20%;
-    --input: 215 25% 20%;
-    --ring: 210 100% 55%;
+    --border: 220 25% 20%;
+    --input: 220 25% 20%;
+    --ring: 220 90% 60%;
 
-    --gradient-primary: linear-gradient(135deg, hsl(210 100% 55%), hsl(185 70% 45%));
-    --gradient-subtle: linear-gradient(180deg, hsl(215 30% 8%), hsl(215 25% 12%));
+    --gradient-primary: linear-gradient(135deg, hsl(220 90% 60%) 0%, hsl(270 70% 65%) 100%);
+    --gradient-subtle: linear-gradient(180deg, hsl(220 30% 8%) 0%, hsl(220 25% 12%) 100%);
+    --gradient-hero: linear-gradient(135deg, hsl(220 90% 60%) 0%, hsl(270 70% 65%) 50%, hsl(280 65% 65%) 100%);
+    --gradient-card: linear-gradient(135deg, hsl(220 90% 15%) 0%, hsl(270 70% 15%) 100%);
     
-    --shadow-elegant: 0 10px 30px -10px hsl(210 100% 55% / 0.25);
-    --shadow-card: 0 2px 8px hsl(0 0% 0% / 0.3);
+    --shadow-elegant: 0 20px 50px -15px hsl(220 90% 60% / 0.35);
+    --shadow-card: 0 4px 20px hsl(0 0% 0% / 0.3);
+    --shadow-glow: 0 0 50px hsl(220 90% 60% / 0.3);
   }
 }
 
@@ -111,5 +122,52 @@ All colors MUST be HSL.
 
   body {
     @apply bg-background text-foreground;
+  }
+}
+
+@layer utilities {
+  .animate-fade-in {
+    animation: fadeIn 0.5s ease-out;
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.6s ease-out;
+  }
+
+  .animate-scale-in {
+    animation: scaleIn 0.4s ease-out;
+  }
+
+  @keyframes fadeIn {
+    from {
+      opacity: 0;
+      transform: translateY(10px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes slideUp {
+    from {
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    to {
+      opacity: 1;
+      transform: translateY(0);
+    }
+  }
+
+  @keyframes scaleIn {
+    from {
+      opacity: 0;
+      transform: scale(0.95);
+    }
+    to {
+      opacity: 1;
+      transform: scale(1);
+    }
   }
 }

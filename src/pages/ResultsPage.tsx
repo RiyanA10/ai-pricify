@@ -180,37 +180,39 @@ Position vs Market,${results.position_vs_market ? results.position_vs_market.toF
   const isPriceIncrease = priceChange > 0;
 
   return (
-    <div className="min-h-screen bg-gradient-subtle p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-hero p-4 md:p-8 animate-fade-in">
       <div className="max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-6">
+        <div className="mb-8 animate-slide-up">
           <Button
-            variant="ghost"
+            variant="outline"
             onClick={() => navigate('/')}
-            className="mb-4"
+            className="mb-6 hover:shadow-lg transition-all"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Upload New Product
           </Button>
           
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
-              <h1 className="text-3xl md:text-4xl font-bold mb-2 bg-gradient-primary bg-clip-text text-transparent">
+              <h1 className="text-4xl md:text-5xl font-bold mb-4 bg-gradient-primary bg-clip-text text-transparent">
                 AI TRUEST™ Pricing Analysis
               </h1>
               <div className="flex items-center gap-3 flex-wrap">
-                <p className="text-xl font-semibold">{baseline.product_name}</p>
-                <Badge variant="secondary">{baseline.category}</Badge>
-                <Badge variant="outline">{baseline.currency}</Badge>
+                <p className="text-2xl font-bold">{baseline.product_name}</p>
+                <Badge variant="secondary" className="px-4 py-1 text-base">{baseline.category}</Badge>
+                <Badge variant="outline" className="px-4 py-1 text-base">{baseline.currency}</Badge>
               </div>
             </div>
           </div>
         </div>
 
         {/* Main Results Card */}
-        <Card className="p-6 md:p-8 mb-6 shadow-elegant">
-          <h2 className="text-2xl font-bold mb-6 flex items-center gap-2">
-            <TrendingUp className="w-6 h-6 text-primary" />
+        <Card className="p-6 md:p-10 mb-8 shadow-elegant hover:shadow-glow transition-all animate-scale-in backdrop-blur-sm bg-white/95">
+          <h2 className="text-3xl font-bold mb-8 flex items-center gap-3 bg-gradient-primary bg-clip-text text-transparent">
+            <div className="p-2 bg-gradient-primary rounded-lg">
+              <TrendingUp className="w-7 h-7 text-white" />
+            </div>
             Pricing Recommendation
           </h2>
 

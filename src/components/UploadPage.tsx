@@ -150,15 +150,20 @@ export const UploadPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-subtle p-4 md:p-8">
+    <div className="min-h-screen bg-gradient-hero p-4 md:p-8 animate-fade-in">
       <div className="max-w-4xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-8">
+        <div className="flex items-center justify-between mb-10 animate-slide-up">
           <div className="text-center flex-1">
-            <h1 className="text-4xl md:text-5xl font-bold mb-3 bg-gradient-primary bg-clip-text text-transparent">
-              AI TRUEST™
-            </h1>
-            <p className="text-xl text-muted-foreground">
+            <div className="inline-flex items-center gap-3 mb-4">
+              <div className="w-12 h-12 bg-white rounded-xl flex items-center justify-center shadow-glow">
+                <span className="text-xl font-bold bg-gradient-primary bg-clip-text text-transparent">AT</span>
+              </div>
+              <h1 className="text-5xl md:text-6xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+                AI TRUEST™
+              </h1>
+            </div>
+            <p className="text-xl md:text-2xl font-medium text-foreground/80">
               Intelligent Pricing Optimization System
             </p>
           </div>
@@ -166,27 +171,30 @@ export const UploadPage = () => {
             onClick={handleSignOut}
             variant="outline"
             size="sm"
-            className="ml-4"
+            className="ml-4 hover:shadow-lg transition-all"
           >
             <LogOut className="w-4 h-4 mr-2" />
             Sign Out
           </Button>
         </div>
 
-        <Card className="p-8 shadow-elegant">
-          <h2 className="text-2xl font-semibold mb-6 flex items-center gap-2">
-            <Upload className="w-6 h-6 text-primary" />
+        <Card className="p-8 md:p-10 shadow-elegant hover:shadow-glow transition-all duration-300 animate-scale-in backdrop-blur-sm bg-white/95">
+          <h2 className="text-3xl font-bold mb-8 flex items-center gap-3 bg-gradient-primary bg-clip-text text-transparent">
+            <div className="p-2 bg-gradient-primary rounded-lg">
+              <Upload className="w-6 h-6 text-white" />
+            </div>
             Upload Your Product Data
           </h2>
 
           {/* Download Template Button */}
-          <div className="mb-6">
+          <div className="mb-8">
             <Button
               onClick={generateExcelTemplate}
               variant="outline"
-              className="w-full sm:w-auto"
+              size="lg"
+              className="w-full sm:w-auto hover:shadow-lg hover:scale-105 transition-all"
             >
-              <Download className="w-4 h-4 mr-2" />
+              <Download className="w-5 h-5 mr-2" />
               Download Excel Template
             </Button>
           </div>
@@ -197,9 +205,9 @@ export const UploadPage = () => {
             onDragLeave={handleDragLeave}
             onDrop={handleDrop}
             className={`
-              border-2 border-dashed rounded-lg p-12 text-center transition-all duration-300
-              ${isDragging ? 'border-primary bg-primary/5' : 'border-border'}
-              ${isProcessing ? 'opacity-50 pointer-events-none' : 'cursor-pointer hover:border-primary'}
+              border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 bg-gradient-card
+              ${isDragging ? 'border-primary bg-primary/10 scale-105 shadow-glow' : 'border-border/50'}
+              ${isProcessing ? 'opacity-50 pointer-events-none' : 'cursor-pointer hover:border-primary hover:bg-primary/5 hover:scale-[1.02]'}
             `}
           >
             <input
@@ -268,13 +276,13 @@ export const UploadPage = () => {
           </div>
 
           {/* Footer */}
-          <footer className="text-center py-8 border-t border-border/50 mt-8">
-            <p className="text-sm text-muted-foreground mb-2">
-              © 2025 AI Truest, Saudi Arabia. All Rights Reserved.
+          <footer className="text-center py-8 border-t border-border/50 mt-10">
+            <p className="text-sm font-medium text-muted-foreground mb-3">
+              © 2025 AI TRUEST™ Saudi Arabia. All Rights Reserved.
             </p>
             <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
-              <span>📩 <a href="mailto:info@paybacksa.com" className="hover:text-primary hover:underline">info@paybacksa.com</a></span>
-              <span>•</span>
+              <span>📩 <a href="mailto:info@paybacksa.com" className="hover:text-primary hover:underline transition-colors font-medium">info@paybacksa.com</a></span>
+              <span className="text-border">•</span>
               <span>📍 Riyadh, Saudi Arabia</span>
             </div>
           </footer>

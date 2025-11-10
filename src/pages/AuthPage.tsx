@@ -123,12 +123,17 @@ const AuthPage = () => {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 via-white to-purple-50 p-4">
-      <Card className="w-full max-w-md">
-        <CardHeader className="space-y-1">
-          <CardTitle className="text-2xl font-bold text-center">AI Truest</CardTitle>
-          <CardDescription className="text-center">
-            Sign in to access AI-powered pricing optimization
+    <div className="min-h-screen flex items-center justify-center bg-gradient-hero p-4">
+      <Card className="w-full max-w-md shadow-elegant animate-scale-in backdrop-blur-sm">
+        <CardHeader className="space-y-3 text-center">
+          <div className="w-16 h-16 mx-auto bg-gradient-primary rounded-2xl flex items-center justify-center shadow-glow">
+            <span className="text-2xl font-bold text-white">AT</span>
+          </div>
+          <CardTitle className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+            AI TRUEST™
+          </CardTitle>
+          <CardDescription className="text-base">
+            AI-powered pricing optimization for your business
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -230,11 +235,11 @@ const AuthPage = () => {
             </TabsContent>
           </Tabs>
         </CardContent>
-        <CardFooter className="flex flex-col space-y-4">
-          <div className="text-center text-sm text-muted-foreground">
-            <p>© 2025 AI Truest, Saudi Arabia</p>
-            <div className="flex items-center justify-center gap-2 mt-2">
-              <span>📩 <a href="mailto:info@paybacksa.com" className="hover:text-primary hover:underline">info@paybacksa.com</a></span>
+        <CardFooter className="flex flex-col space-y-4 border-t pt-6">
+          <div className="text-center text-sm text-muted-foreground space-y-2">
+            <p className="font-medium">© 2025 AI TRUEST™ Saudi Arabia</p>
+            <div className="flex items-center justify-center gap-2">
+              <span>📩 <a href="mailto:info@paybacksa.com" className="hover:text-primary hover:underline transition-colors">info@paybacksa.com</a></span>
             </div>
           </div>
         </CardFooter>

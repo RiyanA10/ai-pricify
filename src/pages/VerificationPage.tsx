@@ -144,16 +144,18 @@ const VerificationPage = () => {
   };
   
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-purple-50 flex items-center justify-center p-4">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen bg-gradient-hero flex items-center justify-center p-4">
+      <Card className="w-full max-w-md shadow-elegant animate-scale-in">
         <CardHeader className="text-center space-y-4">
-          <div className="w-16 h-16 bg-blue-100 rounded-full flex items-center justify-center mx-auto">
-            <Mail className="w-8 h-8 text-blue-600" />
+          <div className="w-20 h-20 bg-gradient-primary rounded-full flex items-center justify-center mx-auto shadow-glow">
+            <Mail className="w-10 h-10 text-white" />
           </div>
-          <CardTitle className="text-2xl">Verify Your Email</CardTitle>
-          <CardDescription>
+          <CardTitle className="text-3xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+            Verify Your Email
+          </CardTitle>
+          <CardDescription className="text-base">
             We sent a 6-digit code to<br/>
-            <strong className="text-foreground">{userEmail}</strong>
+            <strong className="text-foreground text-lg">{userEmail}</strong>
           </CardDescription>
         </CardHeader>
         
@@ -172,7 +174,7 @@ const VerificationPage = () => {
                   value={digit}
                   onChange={(e) => handleCodeChange(index, e.target.value)}
                   onKeyDown={(e) => handleKeyDown(index, e)}
-                  className="w-12 h-14 text-center text-2xl font-bold border-2 border-input rounded-lg focus:border-primary focus:ring-2 focus:ring-ring transition-all disabled:opacity-50"
+                  className="w-14 h-16 text-center text-2xl font-bold border-2 border-input rounded-xl focus:border-primary focus:ring-4 focus:ring-primary/20 transition-all disabled:opacity-50 bg-primary-subtle/30 hover:bg-primary-subtle/50"
                   disabled={loading}
                 />
               ))}
