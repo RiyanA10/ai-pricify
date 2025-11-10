@@ -1,1 +1,9 @@
 project_id = "vysewjocqjndkagngeum"
+
+[functions.process-pricing]
+
+[functions.refresh-competitors]
+
+[functions.send-verification]
+
+[functions.verify-email]

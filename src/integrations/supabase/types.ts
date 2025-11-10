@@ -64,6 +64,45 @@ export type Database = {
           },
         ]
       }
+      email_verifications: {
+        Row: {
+          attempts: number | null
+          code_hash: string
+          created_at: string | null
+          email: string
+          expires_at: string
+          id: string
+          user_id: string
+          verification_code: string
+          verified: boolean | null
+          verified_at: string | null
+        }
+        Insert: {
+          attempts?: number | null
+          code_hash: string
+          created_at?: string | null
+          email: string
+          expires_at: string
+          id?: string
+          user_id: string
+          verification_code: string
+          verified?: boolean | null
+          verified_at?: string | null
+        }
+        Update: {
+          attempts?: number | null
+          code_hash?: string
+          created_at?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          user_id?: string
+          verification_code?: string
+          verified?: boolean | null
+          verified_at?: string | null
+        }
+        Relationships: []
+      }
       inflation_snapshots: {
         Row: {
           fetched_at: string | null
@@ -236,6 +275,33 @@ export type Database = {
           id?: string
           merchant_id?: string
           product_name?: string
+        }
+        Relationships: []
+      }
+      profiles: {
+        Row: {
+          business_name: string | null
+          created_at: string | null
+          email_verified: boolean | null
+          email_verified_at: string | null
+          id: string
+          phone: string | null
+        }
+        Insert: {
+          business_name?: string | null
+          created_at?: string | null
+          email_verified?: boolean | null
+          email_verified_at?: string | null
+          id: string
+          phone?: string | null
+        }
+        Update: {
+          business_name?: string | null
+          created_at?: string | null
+          email_verified?: boolean | null
+          email_verified_at?: string | null
+          id?: string
+          phone?: string | null
         }
         Relationships: []
       }

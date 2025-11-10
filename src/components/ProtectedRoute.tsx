@@ -15,28 +15,47 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    const checkEmailVerification = async (userId: string) => {
+      const { data: profile } = await supabase
+        .from('profiles')
+        .select('email_verified')
+        .eq('id', userId)
+        .single();
+      
+      if (profile && !profile.email_verified) {
+        const { data: { user } } = await supabase.auth.getUser();
+        navigate(`/verify?email=${encodeURIComponent(user?.email || '')}`);
+      }
+    };
+
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (event, session) => {
+      async (event, session) => {
         setSession(session);
         setUser(session?.user ?? null);
-        setLoading(false);
         
         if (!session) {
           navigate('/auth');
+        } else {
+          await checkEmailVerification(session.user.id);
         }
+        
+        setLoading(false);
       }
     );
 
     // THEN check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
-      setLoading(false);
       
       if (!session) {
         navigate('/auth');
+      } else {
+        await checkEmailVerification(session.user.id);
       }
+      
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();

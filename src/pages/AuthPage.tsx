@@ -15,6 +15,7 @@ const AuthPage = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [businessName, setBusinessName] = useState('');
 
   useEffect(() => {
     // Check if user is already logged in
@@ -30,11 +31,14 @@ const AuthPage = () => {
     setIsLoading(true);
 
     try {
-      const { error } = await supabase.auth.signUp({
+      const { data, error } = await supabase.auth.signUp({
         email,
         password,
         options: {
-          emailRedirectTo: `${window.location.origin}/`
+          emailRedirectTo: `${window.location.origin}/`,
+          data: {
+            business_name: businessName
+          }
         }
       });
 
@@ -44,13 +48,34 @@ const AuthPage = () => {
           description: error.message,
           variant: 'destructive',
         });
-      } else {
-        toast({
-          title: 'Sign Up Successful',
-          description: 'You can now sign in with your credentials.',
+      } else if (data.user) {
+        // Send verification email
+        const { error: functionError } = await supabase.functions.invoke('send-verification', {
+          body: {
+            email,
+            business_name: businessName,
+            is_resend: false
+          }
         });
+
+        if (functionError) {
+          console.error('Verification email error:', functionError);
+          toast({
+            title: 'Warning',
+            description: 'Account created but verification email failed to send. Please contact support.',
+            variant: 'destructive',
+          });
+        } else {
+          toast({
+            title: 'Check Your Email',
+            description: 'We sent you a verification code. Please check your inbox.',
+          });
+          navigate(`/verify?email=${encodeURIComponent(email)}&business=${encodeURIComponent(businessName)}`);
+        }
+        
         setEmail('');
         setPassword('');
+        setBusinessName('');
       }
     } catch (error) {
       toast({
@@ -152,6 +177,18 @@ const AuthPage = () => {
             </TabsContent>
             <TabsContent value="signup">
               <form onSubmit={handleSignUp} className="space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="signup-business">Business Name</Label>
+                  <Input
+                    id="signup-business"
+                    type="text"
+                    placeholder="My Store"
+                    value={businessName}
+                    onChange={(e) => setBusinessName(e.target.value)}
+                    required
+                    disabled={isLoading}
+                  />
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="signup-email">Email</Label>
                   <Input
