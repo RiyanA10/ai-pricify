@@ -277,12 +277,12 @@ export const UploadPage = () => {
 
           {/* Footer */}
           <footer className="text-center py-8 border-t border-border/50 mt-10">
-            <p className="text-sm font-medium text-muted-foreground mb-3">
+            <p className="text-sm font-semibold text-foreground mb-3">
               © 2025 AI TRUEST™ Saudi Arabia. All Rights Reserved.
             </p>
-            <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
+            <div className="flex items-center justify-center gap-4 text-sm text-foreground/80">
               <span>📩 <a href="mailto:info@paybacksa.com" className="hover:text-primary hover:underline transition-colors font-medium">info@paybacksa.com</a></span>
-              <span className="text-border">•</span>
+              <span>•</span>
               <span>📍 Riyadh, Saudi Arabia</span>
             </div>
           </footer>

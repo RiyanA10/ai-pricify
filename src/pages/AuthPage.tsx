@@ -236,10 +236,10 @@ const AuthPage = () => {
           </Tabs>
         </CardContent>
         <CardFooter className="flex flex-col space-y-4 border-t pt-6">
-          <div className="text-center text-sm text-muted-foreground space-y-2">
-            <p className="font-medium">© 2025 AI TRUEST™ Saudi Arabia</p>
-            <div className="flex items-center justify-center gap-2">
-              <span>📩 <a href="mailto:info@paybacksa.com" className="hover:text-primary hover:underline transition-colors">info@paybacksa.com</a></span>
+          <div className="text-center text-sm space-y-2">
+            <p className="font-semibold text-foreground">© 2025 AI TRUEST™ Saudi Arabia</p>
+            <div className="flex items-center justify-center gap-2 text-foreground/80">
+              <span>📩 <a href="mailto:info@paybacksa.com" className="hover:text-primary hover:underline transition-colors font-medium">info@paybacksa.com</a></span>
             </div>
           </div>
         </CardFooter>
