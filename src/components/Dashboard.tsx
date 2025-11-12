@@ -73,6 +73,10 @@ const Dashboard = ({ onNavigateToUpload }: DashboardProps) => {
               </div>
             </div>
             <div className="flex items-center gap-3">
+              <Button onClick={() => navigate('/products')} variant="outline" className="flex items-center gap-2">
+                <Package className="w-4 h-4" />
+                View All Products
+              </Button>
               <Button onClick={onNavigateToUpload} className="flex items-center gap-2">
                 <Upload className="w-4 h-4" />
                 Upload Products

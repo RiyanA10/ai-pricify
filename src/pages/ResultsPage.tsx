@@ -184,19 +184,27 @@ Position vs Market,${results.position_vs_market ? results.position_vs_market.toF
       <div className="max-w-7xl mx-auto">
         {/* Header */}
         <div className="mb-6 animate-slide-up">
-          <Button
-            variant="outline"
-            onClick={() => navigate('/')}
-            className="mb-4 hover:shadow-lg transition-all"
-          >
-            <ArrowLeft className="w-4 h-4 mr-2" />
-            Upload New Product
-          </Button>
+          <div className="flex items-center gap-3 mb-4">
+            <Button
+              variant="outline"
+              onClick={() => navigate('/products')}
+              className="hover:shadow-lg transition-all"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Products
+            </Button>
+            <Button
+              variant="outline"
+              onClick={() => navigate('/')}
+            >
+              Dashboard
+            </Button>
+          </div>
           
           <div className="flex items-center justify-between flex-wrap gap-4">
             <div>
-              <h1 className="text-3xl md:text-4xl font-bold mb-3 text-primary">
-                AI TRUEST™ Pricing Analysis
+              <h1 className="text-3xl md:text-4xl font-bold mb-3 text-foreground">
+                📊 Price Analysis Detail
               </h1>
               <div className="flex items-center gap-3 flex-wrap">
                 <p className="text-xl font-bold text-foreground">{baseline.product_name}</p>
@@ -208,13 +216,25 @@ Position vs Market,${results.position_vs_market ? results.position_vs_market.toF
         </div>
 
         {/* Main Results Card */}
-        <Card className="p-6 md:p-8 mb-6 shadow-elegant hover:shadow-glow transition-all animate-scale-in">
-          <h2 className="text-2xl font-bold mb-6 flex items-center gap-2 text-foreground">
-            <div className="p-2 bg-primary rounded-lg shadow-md">
-              <TrendingUp className="w-5 h-5 text-white" />
+        <Card className="p-6 md:p-8 mb-6 shadow-lg border-2 border-primary/20 animate-scale-in">
+          <div className="flex items-center justify-between mb-6 flex-wrap gap-4">
+            <h2 className="text-2xl font-bold flex items-center gap-2 text-foreground">
+              <div className="p-2 bg-primary rounded-lg shadow-md">
+                <TrendingUp className="w-5 h-5 text-white" />
+              </div>
+              💰 Pricing Overview
+            </h2>
+            <div className="flex gap-2">
+              <Button onClick={exportToCSV} variant="outline" size="sm" className="gap-2">
+                <Download className="w-4 h-4" />
+                Download Report
+              </Button>
+              <Button onClick={handleRefreshCompetitors} disabled={isRefreshing} variant="outline" size="sm" className="gap-2">
+                <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+                Refresh Data
+              </Button>
             </div>
-            Pricing Recommendation
-          </h2>
+          </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
             <div className="space-y-4">
