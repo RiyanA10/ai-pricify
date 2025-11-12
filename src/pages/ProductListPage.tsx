@@ -115,60 +115,62 @@ export default function ProductListPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="min-h-screen bg-background p-3 sm:p-4 md:p-6 lg:p-8">
+      <div className="max-w-[1600px] mx-auto w-full">
         {/* Header */}
-        <div className="mb-6">
+        <div className="mb-4 md:mb-6">
           <Button
             variant="outline"
             onClick={() => navigate('/')}
-            className="mb-4"
+            className="mb-3 md:mb-4"
+            size="sm"
           >
             <ArrowLeft className="w-4 h-4 mr-2" />
             Back to Dashboard
           </Button>
 
-          <div className="flex items-center justify-between flex-wrap gap-4">
+          <div className="flex items-center justify-between flex-wrap gap-3 md:gap-4">
             <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">📦 My Products</h1>
-              <p className="text-muted-foreground">Manage and optimize your product pricing</p>
+              <h1 className="text-2xl md:text-3xl lg:text-4xl font-bold text-foreground mb-1 md:mb-2">📦 My Products</h1>
+              <p className="text-sm md:text-base text-muted-foreground">Manage and optimize your product pricing</p>
             </div>
-            <Button onClick={() => navigate('/?view=upload')} className="gap-2">
+            <Button onClick={() => navigate('/?view=upload')} className="gap-2" size="sm">
               <Download className="w-4 h-4" />
-              Upload New Products
+              <span className="hidden sm:inline">Upload New Products</span>
+              <span className="sm:hidden">Upload</span>
             </Button>
           </div>
         </div>
 
         {/* Search and Filters */}
-        <Card className="p-4 mb-6">
-          <div className="flex items-center gap-4 flex-wrap">
-            <div className="flex-1 min-w-[200px]">
+        <Card className="p-3 md:p-4 mb-4 md:mb-6">
+          <div className="flex items-center gap-2 md:gap-4 flex-wrap">
+            <div className="flex-1 min-w-[180px]">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                 <Input
                   placeholder="Search products..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
+                  className="pl-10 h-9 md:h-10"
                 />
               </div>
             </div>
             <Button variant="outline" size="sm" className="gap-2">
               <Filter className="w-4 h-4" />
-              Filter
+              <span className="hidden sm:inline">Filter</span>
             </Button>
           </div>
         </Card>
 
-        {/* Products Grid - Desktop */}
+        {/* Products Grid - Desktop & Tablet */}
         <div className="hidden md:block">
           <Card className="overflow-hidden">
-            <div className="bg-muted/50 px-6 py-4 font-semibold text-sm grid grid-cols-12 gap-4">
-              <div className="col-span-4">Product Name</div>
-              <div className="col-span-2 text-center">Current Price</div>
-              <div className="col-span-2 text-center">Optimal Price</div>
-              <div className="col-span-2 text-center">Potential</div>
+            <div className="bg-muted/50 px-4 lg:px-6 py-3 lg:py-4 font-semibold text-xs lg:text-sm grid grid-cols-12 gap-2 lg:gap-4">
+              <div className="col-span-3 lg:col-span-4">Product Name</div>
+              <div className="col-span-2 text-center">Current</div>
+              <div className="col-span-2 text-center">Optimal</div>
+              <div className="col-span-3 lg:col-span-2 text-center">Potential</div>
               <div className="col-span-2 text-center">Status</div>
             </div>
 
@@ -183,24 +185,24 @@ export default function ProductListPage() {
                   <div
                     key={product.id}
                     onClick={() => navigate(`/results/${product.id}`)}
-                    className="px-6 py-4 hover:bg-muted/30 cursor-pointer transition-colors grid grid-cols-12 gap-4 items-center"
+                    className="px-4 lg:px-6 py-3 lg:py-4 hover:bg-muted/30 cursor-pointer transition-colors grid grid-cols-12 gap-2 lg:gap-4 items-center"
                   >
-                    <div className="col-span-4">
-                      <p className="font-semibold text-foreground">{product.product_name}</p>
-                      <p className="text-sm text-muted-foreground">{product.category}</p>
+                    <div className="col-span-3 lg:col-span-4 min-w-0">
+                      <p className="font-semibold text-foreground text-sm lg:text-base truncate">{product.product_name}</p>
+                      <p className="text-xs lg:text-sm text-muted-foreground truncate">{product.category}</p>
                     </div>
                     <div className="col-span-2 text-center">
-                      <p className="font-semibold">{product.currency} {product.current_price.toFixed(2)}</p>
+                      <p className="font-semibold text-xs lg:text-sm">{product.currency} {product.current_price.toFixed(2)}</p>
                     </div>
                     <div className="col-span-2 text-center">
                       {product.optimal_price ? (
                         <div>
-                          <p className="font-semibold text-primary">{product.currency} {product.optimal_price.toFixed(2)}</p>
-                          <div className="flex items-center justify-center gap-1 text-xs">
+                          <p className="font-semibold text-primary text-xs lg:text-sm">{product.currency} {product.optimal_price.toFixed(2)}</p>
+                          <div className="flex items-center justify-center gap-1 text-[10px] lg:text-xs">
                             {isPriceIncrease ? (
-                              <TrendingUp className="w-3 h-3 text-success" />
+                              <TrendingUp className="w-2.5 h-2.5 lg:w-3 lg:h-3 text-success" />
                             ) : (
-                              <TrendingDown className="w-3 h-3 text-destructive" />
+                              <TrendingDown className="w-2.5 h-2.5 lg:w-3 lg:h-3 text-destructive" />
                             )}
                             <span className={isPriceIncrease ? 'text-success' : 'text-destructive'}>
                               {priceChange > 0 ? '+' : ''}{priceChange.toFixed(1)}%
@@ -208,17 +210,17 @@ export default function ProductListPage() {
                           </div>
                         </div>
                       ) : (
-                        <span className="text-muted-foreground text-sm">Processing...</span>
+                        <span className="text-muted-foreground text-xs">Processing...</span>
                       )}
                     </div>
-                    <div className="col-span-2 text-center">
+                    <div className="col-span-3 lg:col-span-2 text-center">
                       {product.profit_increase ? (
-                        <p className="font-semibold text-success">+{product.currency} {product.profit_increase.toFixed(0)}/mo</p>
+                        <p className="font-semibold text-success text-xs lg:text-sm">+{product.currency} {product.profit_increase.toFixed(0)}/mo</p>
                       ) : (
-                        <span className="text-muted-foreground text-sm">-</span>
+                        <span className="text-muted-foreground text-xs">-</span>
                       )}
                     </div>
-                    <div className="col-span-2 text-center">
+                    <div className="col-span-2 text-center flex justify-center">
                       {getStatusBadge(product.status)}
                     </div>
                   </div>
@@ -229,7 +231,7 @@ export default function ProductListPage() {
         </div>
 
         {/* Products Grid - Mobile */}
-        <div className="md:hidden space-y-4">
+        <div className="md:hidden space-y-3">
           {filteredProducts.map((product) => {
             const priceChange = product.optimal_price 
               ? ((product.optimal_price - product.current_price) / product.current_price) * 100 
@@ -240,36 +242,38 @@ export default function ProductListPage() {
               <Card
                 key={product.id}
                 onClick={() => navigate(`/results/${product.id}`)}
-                className="p-4 cursor-pointer hover:shadow-lg transition-all"
+                className="p-3 sm:p-4 cursor-pointer hover:shadow-lg transition-all"
               >
-                <div className="flex items-start justify-between mb-3">
-                  <div className="flex-1">
-                    <h3 className="font-semibold text-foreground mb-1">{product.product_name}</h3>
-                    <p className="text-sm text-muted-foreground">{product.category}</p>
+                <div className="flex items-start justify-between mb-2 sm:mb-3 gap-2">
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-foreground text-sm sm:text-base mb-1 truncate">{product.product_name}</h3>
+                    <p className="text-xs sm:text-sm text-muted-foreground truncate">{product.category}</p>
                   </div>
-                  {getStatusBadge(product.status)}
+                  <div className="flex-shrink-0">
+                    {getStatusBadge(product.status)}
+                  </div>
                 </div>
 
                 <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-sm text-muted-foreground">Current:</span>
-                    <span className="font-semibold">{product.currency} {product.current_price.toFixed(2)}</span>
+                  <div className="flex justify-between items-center">
+                    <span className="text-xs sm:text-sm text-muted-foreground">Current:</span>
+                    <span className="font-semibold text-sm sm:text-base">{product.currency} {product.current_price.toFixed(2)}</span>
                   </div>
                   {product.optimal_price && (
                     <>
-                      <div className="flex justify-between">
-                        <span className="text-sm text-muted-foreground">Optimal:</span>
+                      <div className="flex justify-between items-center">
+                        <span className="text-xs sm:text-sm text-muted-foreground">Optimal:</span>
                         <div className="text-right">
-                          <span className="font-semibold text-primary">{product.currency} {product.optimal_price.toFixed(2)}</span>
-                          <span className={`ml-2 text-sm ${isPriceIncrease ? 'text-success' : 'text-destructive'}`}>
+                          <span className="font-semibold text-primary text-sm sm:text-base">{product.currency} {product.optimal_price.toFixed(2)}</span>
+                          <span className={`ml-2 text-xs ${isPriceIncrease ? 'text-success' : 'text-destructive'}`}>
                             ({priceChange > 0 ? '+' : ''}{priceChange.toFixed(1)}%)
                           </span>
                         </div>
                       </div>
                       {product.profit_increase && (
-                        <div className="flex justify-between">
-                          <span className="text-sm text-muted-foreground">Potential:</span>
-                          <span className="font-semibold text-success">+{product.currency} {product.profit_increase.toFixed(0)}/month</span>
+                        <div className="flex justify-between items-center">
+                          <span className="text-xs sm:text-sm text-muted-foreground">Potential:</span>
+                          <span className="font-semibold text-success text-sm sm:text-base">+{product.currency} {product.profit_increase.toFixed(0)}/month</span>
                         </div>
                       )}
                     </>
@@ -281,9 +285,12 @@ export default function ProductListPage() {
         </div>
 
         {filteredProducts.length === 0 && (
-          <Card className="p-12 text-center">
-            <p className="text-muted-foreground mb-4">No products found</p>
-            <Button onClick={() => navigate('/?view=upload')}>Upload Your First Product</Button>
+          <Card className="p-8 md:p-12 text-center">
+            <p className="text-sm md:text-base text-muted-foreground mb-4">No products found</p>
+            <Button onClick={() => navigate('/?view=upload')} size="sm">
+              <span className="hidden sm:inline">Upload Your First Product</span>
+              <span className="sm:hidden">Upload Product</span>
+            </Button>
           </Card>
         )}
       </div>
