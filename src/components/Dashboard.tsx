@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { TrendingUp, DollarSign, Package, AlertCircle, ArrowUp, LogOut, Upload } from 'lucide-react';
+import { TrendingUp, DollarSign, Package, AlertCircle, ArrowUp, LogOut, Upload, Target } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
@@ -76,6 +76,10 @@ const Dashboard = ({ onNavigateToUpload }: DashboardProps) => {
               <Button onClick={() => navigate('/products')} variant="outline" className="flex items-center gap-2">
                 <Package className="w-4 h-4" />
                 View All Products
+              </Button>
+              <Button onClick={() => navigate('/competitive-intelligence')} variant="outline" className="flex items-center gap-2">
+                <Target className="w-4 h-4" />
+                Competitive Intelligence
               </Button>
               <Button onClick={onNavigateToUpload} className="flex items-center gap-2">
                 <Upload className="w-4 h-4" />
