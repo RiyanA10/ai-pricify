@@ -15,10 +15,14 @@ const Index = () => {
     navigate('/auth');
   };
 
+  const handleViewChange = (view: 'dashboard' | 'upload') => {
+    setCurrentView(view);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {currentView === 'dashboard' ? (
-        <Dashboard />
+        <Dashboard onNavigateToUpload={() => handleViewChange('upload')} />
       ) : (
         <div className="min-h-screen bg-background">
           <header className="border-b bg-card sticky top-0 z-50 shadow-sm">

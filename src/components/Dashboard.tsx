@@ -6,7 +6,11 @@ import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 
-const Dashboard = () => {
+interface DashboardProps {
+  onNavigateToUpload: () => void;
+}
+
+const Dashboard = ({ onNavigateToUpload }: DashboardProps) => {
   const navigate = useNavigate();
   // Mock data - will be replaced with real data
   const metrics = {
@@ -69,7 +73,7 @@ const Dashboard = () => {
               </div>
             </div>
             <div className="flex items-center gap-3">
-              <Button onClick={() => navigate('/?view=upload')} className="flex items-center gap-2">
+              <Button onClick={onNavigateToUpload} className="flex items-center gap-2">
                 <Upload className="w-4 h-4" />
                 Upload Products
               </Button>
