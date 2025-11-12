@@ -28,18 +28,8 @@ const ProtectedRoute = ({ children }: ProtectedRouteProps) => {
         return;
       }
 
-      // Check email verification
-      const { data: profile } = await supabase
-        .from('profiles')
-        .select('email_verified')
-        .eq('id', session.user.id)
-        .single();
-      
+      // Email verification disabled - direct access granted
       if (!mounted) return;
-      
-      if (profile && !profile.email_verified) {
-        navigate(`/verify?email=${encodeURIComponent(session.user.email || '')}`);
-      }
       
       setSession(session);
       setUser(session.user);

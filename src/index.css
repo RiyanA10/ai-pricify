@@ -2,116 +2,119 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
-All colors MUST be HSL.
-*/
+/* AI TRUEST™ Design System - All colors MUST be HSL */
 
 @layer base {
   :root {
-    /* Modern Analytics Platform Colors */
-    --background: 220 25% 97%;
-    --foreground: 220 20% 10%;
-
+    /* Base Colors */
+    --background: 210 20% 98%;
+    --foreground: 220 26% 14%;
     --card: 0 0% 100%;
-    --card-foreground: 220 20% 10%;
-
+    --card-foreground: 220 26% 14%;
     --popover: 0 0% 100%;
-    --popover-foreground: 220 20% 10%;
-
-    /* Vibrant Blue - Primary brand */
-    --primary: 220 90% 56%;
+    --popover-foreground: 220 26% 14%;
+    
+    /* Primary - Trust & Intelligence Blue */
+    --primary: 217 100% 50%;
+    --primary-dark: 217 100% 35%;
+    --primary-light: 217 100% 95%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 220 90% 65%;
-    --primary-subtle: 220 90% 96%;
-
-    /* Purple accent */
-    --secondary: 270 70% 60%;
-    --secondary-foreground: 0 0% 100%;
-    --secondary-subtle: 270 70% 96%;
-
-    --muted: 220 20% 92%;
-    --muted-foreground: 220 15% 40%;
-
-    --accent: 280 65% 60%;
-    --accent-foreground: 0 0% 100%;
-
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-
-    --success: 142 71% 45%;
+    
+    /* Success - Profit Green */
+    --success: 160 84% 39%;
+    --success-light: 154 75% 87%;
     --success-foreground: 0 0% 100%;
-
+    
+    /* Warning - Price Alert Amber */
     --warning: 38 92% 50%;
-    --warning-foreground: 0 0% 100%;
-
-    --border: 220 20% 88%;
-    --input: 220 20% 88%;
-    --ring: 220 90% 56%;
-
-    --radius: 1rem;
-
-    /* Enhanced Gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(220 90% 56%) 0%, hsl(270 70% 60%) 100%);
-    --gradient-subtle: linear-gradient(180deg, hsl(220 25% 97%) 0%, hsl(220 25% 95%) 100%);
-    --gradient-hero: linear-gradient(135deg, hsl(220 90% 56%) 0%, hsl(270 70% 60%) 50%, hsl(280 65% 60%) 100%);
-    --gradient-card: linear-gradient(135deg, hsl(220 90% 96%) 0%, hsl(270 70% 96%) 100%);
+    --warning-light: 48 96% 89%;
+    --warning-foreground: 220 26% 14%;
     
-    /* Advanced Shadows */
-    --shadow-elegant: 0 20px 50px -15px hsl(220 90% 56% / 0.25);
-    --shadow-card: 0 4px 20px hsl(220 20% 15% / 0.08);
-    --shadow-glow: 0 0 50px hsl(220 90% 56% / 0.2);
+    /* Error - Risk Red */
+    --destructive: 0 84% 60%;
+    --destructive-light: 0 86% 95%;
+    --destructive-foreground: 0 0% 100%;
     
-    /* Smooth Animations */
+    /* Secondary & Muted */
+    --secondary: 220 14% 96%;
+    --secondary-foreground: 220 26% 14%;
+    --muted: 214 14% 83%;
+    --muted-foreground: 220 9% 46%;
+    
+    /* Accent */
+    --accent: 217 100% 95%;
+    --accent-foreground: 217 100% 50%;
+    
+    /* UI Elements */
+    --border: 214 14% 83%;
+    --input: 214 14% 83%;
+    --ring: 217 100% 50%;
+    --radius: 0.75rem;
+    
+    /* Chart Colors for Data Visualization */
+    --chart-1: 217 100% 50%;  /* Current price - Primary Blue */
+    --chart-2: 258 90% 66%;   /* Optimal price - Purple */
+    --chart-3: 330 81% 60%;   /* Competitor average - Pink */
+    --chart-4: 160 84% 39%;   /* Profit line - Green */
+    --chart-5: 38 92% 50%;    /* Cost line - Amber */
+    
+    /* Gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(217 100% 50% / 0.1), hsl(258 90% 66% / 0.1));
+    --gradient-primary: linear-gradient(135deg, hsl(217 100% 50%), hsl(217 100% 35%));
+    
+    /* Shadows */
+    --shadow-elegant: 0 10px 30px -10px hsl(217 100% 50% / 0.2);
+    --shadow-glow: 0 0 40px hsl(217 100% 95% / 0.5);
+    
+    /* Animations */
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-    --transition-bounce: all 0.5s cubic-bezier(0.68, -0.55, 0.265, 1.55);
   }
 
   .dark {
-    --background: 220 30% 8%;
-    --foreground: 220 15% 92%;
-
-    --card: 220 25% 12%;
-    --card-foreground: 220 15% 92%;
-
-    --popover: 220 25% 12%;
-    --popover-foreground: 220 15% 92%;
-
-    --primary: 220 90% 60%;
-    --primary-foreground: 0 0% 100%;
-    --primary-glow: 220 90% 70%;
-    --primary-subtle: 220 90% 15%;
-
-    --secondary: 270 70% 65%;
-    --secondary-foreground: 0 0% 100%;
-    --secondary-subtle: 270 70% 15%;
-
-    --muted: 220 25% 18%;
-    --muted-foreground: 220 15% 65%;
-
-    --accent: 280 65% 65%;
-    --accent-foreground: 0 0% 100%;
-
-    --destructive: 0 72% 56%;
-    --destructive-foreground: 0 0% 100%;
-
-    --success: 142 71% 50%;
-    --success-foreground: 0 0% 100%;
-
-    --warning: 38 92% 55%;
-    --warning-foreground: 0 0% 100%;
-
-    --border: 220 25% 20%;
-    --input: 220 25% 20%;
-    --ring: 220 90% 60%;
-
-    --gradient-primary: linear-gradient(135deg, hsl(220 90% 60%) 0%, hsl(270 70% 65%) 100%);
-    --gradient-subtle: linear-gradient(180deg, hsl(220 30% 8%) 0%, hsl(220 25% 12%) 100%);
-    --gradient-hero: linear-gradient(135deg, hsl(220 90% 60%) 0%, hsl(270 70% 65%) 50%, hsl(280 65% 65%) 100%);
-    --gradient-card: linear-gradient(135deg, hsl(220 90% 15%) 0%, hsl(270 70% 15%) 100%);
+    --background: 220 26% 14%;
+    --foreground: 210 20% 98%;
+    --card: 217 19% 27%;
+    --card-foreground: 210 20% 98%;
+    --popover: 217 19% 27%;
+    --popover-foreground: 210 20% 98%;
     
-    --shadow-elegant: 0 20px 50px -15px hsl(220 90% 60% / 0.35);
-    --shadow-card: 0 4px 20px hsl(0 0% 0% / 0.3);
-    --shadow-glow: 0 0 50px hsl(220 90% 60% / 0.3);
+    --primary: 217 100% 50%;
+    --primary-dark: 217 100% 35%;
+    --primary-light: 217 100% 20%;
+    --primary-foreground: 0 0% 100%;
+    
+    --success: 160 84% 39%;
+    --success-light: 160 84% 20%;
+    --success-foreground: 0 0% 100%;
+    
+    --warning: 38 92% 50%;
+    --warning-light: 38 92% 20%;
+    --warning-foreground: 220 26% 14%;
+    
+    --destructive: 0 84% 60%;
+    --destructive-light: 0 84% 20%;
+    --destructive-foreground: 0 0% 100%;
+    
+    --secondary: 217 19% 27%;
+    --secondary-foreground: 210 20% 98%;
+    --muted: 220 9% 46%;
+    --muted-foreground: 214 14% 83%;
+    
+    --accent: 217 100% 20%;
+    --accent-foreground: 217 100% 50%;
+    
+    --border: 220 9% 46%;
+    --input: 220 9% 46%;
+    --ring: 217 100% 50%;
+    
+    --chart-1: 217 100% 50%;
+    --chart-2: 258 90% 66%;
+    --chart-3: 330 81% 60%;
+    --chart-4: 160 84% 39%;
+    --chart-5: 38 92% 50%;
+    
+    --shadow-elegant: 0 10px 30px -10px hsl(217 100% 50% / 0.3);
+    --shadow-glow: 0 0 40px hsl(217 100% 50% / 0.4);
   }
 }
 
@@ -121,7 +124,7 @@ All colors MUST be HSL.
   }
 
   body {
-    @apply bg-background text-foreground;
+    @apply bg-background text-foreground font-sans;
   }
 }
 
