@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import Index from "./pages/Index";
 import ProcessingPage from "./pages/ProcessingPage";
 import ResultsPage from "./pages/ResultsPage";
+import ProductListPage from "./pages/ProductListPage";
 import NotFound from "./pages/NotFound";
 import AuthPage from "./pages/AuthPage";
 import VerificationPage from "./pages/VerificationPage";
@@ -23,6 +24,7 @@ const App = () => (
           <Route path="/auth" element={<AuthPage />} />
           <Route path="/verify" element={<VerificationPage />} />
           <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
+          <Route path="/products" element={<ProtectedRoute><ProductListPage /></ProtectedRoute>} />
           <Route path="/processing/:baselineId" element={<ProtectedRoute><ProcessingPage /></ProtectedRoute>} />
           <Route path="/results/:baselineId" element={<ProtectedRoute><ResultsPage /></ProtectedRoute>} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}

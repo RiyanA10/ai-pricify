@@ -16,6 +16,12 @@ export default function ProcessingPage() {
     competitors: 'pending',
     calculation: 'pending',
   });
+  const [competitorProgress, setCompetitorProgress] = useState({
+    amazon: 'pending',
+    noon: 'pending',
+    extra: 'pending',
+    jarir: 'pending',
+  });
 
   useEffect(() => {
     if (!baselineId) {
@@ -76,9 +82,20 @@ export default function ProcessingPage() {
       setStatus({
         upload: 'completed',
         inflation: step.includes('inflation') || step.includes('competitor') || step.includes('calculation') ? 'completed' : 'processing',
-        competitors: step.includes('competitor') || step.includes('calculation') ? 'processing' : 'pending',
+        competitors: step.includes('competitor') || step.includes('calculation') ? 'completed' : step.includes('inflation') ? 'processing' : 'pending',
         calculation: step.includes('calculation') ? 'processing' : 'pending',
       });
+
+      // Simulate competitor progress (in production, this would come from edge function)
+      if (step.includes('competitor')) {
+        const progress = Math.random();
+        setCompetitorProgress({
+          amazon: progress > 0.8 ? 'completed' : progress > 0.4 ? 'processing' : 'pending',
+          noon: progress > 0.7 ? 'completed' : progress > 0.3 ? 'processing' : 'pending',
+          extra: progress > 0.6 ? 'completed' : progress > 0.2 ? 'processing' : 'pending',
+          jarir: progress > 0.5 ? 'completed' : progress > 0.1 ? 'processing' : 'pending',
+        });
+      }
 
     } catch (error) {
       console.error('Failed to check status:', error);
@@ -144,9 +161,37 @@ export default function ProcessingPage() {
             {getStatusIcon(status.competitors)}
             <div className="flex-1">
               <p className="font-semibold text-lg">Searching competitor prices</p>
-              <p className="text-sm text-muted-foreground">
-                🛒 Amazon, Noon, Extra, Jarir...
+              <p className="text-sm text-muted-foreground mb-2">
+                🛒 Scanning major marketplaces...
               </p>
+              {status.competitors !== 'pending' && (
+                <div className="space-y-1 ml-4">
+                  <div className="flex items-center gap-2 text-xs">
+                    {getStatusIcon(competitorProgress.amazon)}
+                    <span className={competitorProgress.amazon === 'completed' ? 'text-success' : 'text-muted-foreground'}>
+                      Amazon.sa {competitorProgress.amazon === 'completed' && '- ✅ Found 5 products'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    {getStatusIcon(competitorProgress.noon)}
+                    <span className={competitorProgress.noon === 'completed' ? 'text-success' : 'text-muted-foreground'}>
+                      Noon.com {competitorProgress.noon === 'completed' && '- ✅ Found 4 products'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    {getStatusIcon(competitorProgress.extra)}
+                    <span className={competitorProgress.extra === 'completed' ? 'text-success' : 'text-muted-foreground'}>
+                      Extra.com {competitorProgress.extra === 'completed' && '- ✅ Found 3 products'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2 text-xs">
+                    {getStatusIcon(competitorProgress.jarir)}
+                    <span className={competitorProgress.jarir === 'completed' ? 'text-success' : 'text-muted-foreground'}>
+                      Jarir.com {competitorProgress.jarir === 'completed' && '- ⚠️ Not found'}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
 
