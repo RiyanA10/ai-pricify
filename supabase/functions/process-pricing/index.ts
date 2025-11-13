@@ -66,13 +66,6 @@ serve(async (req) => {
 
     console.log('Starting pricing processing for baseline:', baseline_id);
 
-    // Create processing status
-    await supabase.from('processing_status').insert({
-      baseline_id,
-      status: 'processing',
-      current_step: 'fetching_inflation'
-    });
-
     // Get baseline data first to verify ownership and get currency
     const { data: baseline, error: baselineError } = await supabase
       .from('product_baselines')
@@ -95,41 +88,66 @@ serve(async (req) => {
       });
     }
 
-    // Step 1: Fetch currency-specific inflation rate
-    const { rate: inflationRate, source: inflationSource } = await fetchInflationRate(baseline.currency);
-    console.log(`Fetched inflation rate for ${baseline.currency}:`, inflationRate, 'from', inflationSource);
-    
-    // Save inflation snapshot
-    await supabase.from('inflation_snapshots').insert({
-      inflation_rate: inflationRate,
-      source: inflationSource
+    // Create processing status
+    await supabase.from('processing_status').insert({
+      baseline_id,
+      status: 'processing',
+      current_step: 'fetching_inflation'
     });
 
-    await supabase.from('processing_status')
-      .update({ current_step: 'fetching_competitors' })
-      .eq('baseline_id', baseline_id);
+    // Process everything quickly without blocking
+    Promise.resolve().then(async () => {
+      try {
+        // Step 1: Fetch inflation rate (instant)
+        const { rate: inflationRate, source: inflationSource } = await fetchInflationRate(baseline.currency);
+        console.log(`Fetched inflation rate for ${baseline.currency}:`, inflationRate, 'from', inflationSource);
+        
+        await supabase.from('inflation_snapshots').insert({
+          inflation_rate: inflationRate,
+          source: inflationSource
+        });
 
-    // Step 2: Fetch competitor prices
-    await fetchCompetitorPrices(supabase, baseline_id, baseline.product_name, baseline.currency, baseline.merchant_id);
+        await supabase.from('processing_status')
+          .update({ current_step: 'fetching_competitors' })
+          .eq('baseline_id', baseline_id);
 
-    await supabase.from('processing_status')
-      .update({ current_step: 'calculating_price' })
-      .eq('baseline_id', baseline_id);
+        // Step 2: Fetch competitor prices (fast)
+        await fetchCompetitorPrices(supabase, baseline_id, baseline.product_name, baseline.currency, baseline.merchant_id);
 
-    // Step 3: Calculate optimal price
-    await calculateOptimalPrice(supabase, baseline_id, baseline, inflationRate);
+        await supabase.from('processing_status')
+          .update({ current_step: 'calculating_price' })
+          .eq('baseline_id', baseline_id);
 
-    // Mark as completed
-    await supabase.from('processing_status')
-      .update({ 
-        status: 'completed',
-        current_step: 'completed'
-      })
-      .eq('baseline_id', baseline_id);
+        // Step 3: Calculate optimal price (fast)
+        await calculateOptimalPrice(supabase, baseline_id, baseline, inflationRate);
 
-    console.log('Processing completed successfully');
+        // Mark as completed
+        await supabase.from('processing_status')
+          .update({ 
+            status: 'completed',
+            current_step: 'completed'
+          })
+          .eq('baseline_id', baseline_id);
 
-    return new Response(JSON.stringify({ success: true }), {
+        console.log('Processing completed successfully');
+      } catch (error) {
+        console.error('Processing error:', error);
+        const errorMessage = error instanceof Error ? error.message : 'Processing failed';
+        await supabase.from('processing_status')
+          .update({ 
+            status: 'failed',
+            error_message: errorMessage
+          })
+          .eq('baseline_id', baseline_id);
+      }
+    });
+
+    // Return immediately
+    return new Response(JSON.stringify({ 
+      success: true, 
+      baseline_id,
+      message: 'Processing started'
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
