@@ -29,11 +29,34 @@ export const CompetitiveIntelligencePage = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Fetch competitor prices
+      // First, get active baseline IDs
+      const { data: activeBaselines } = await supabase
+        .from('product_baselines')
+        .select('id')
+        .eq('merchant_id', user.id)
+        .is('deleted_at', null);
+
+      const activeBaselineIds = activeBaselines?.map(b => b.id) || [];
+
+      // If no active baselines, clear all data
+      if (activeBaselineIds.length === 0) {
+        setCompetitorData([]);
+        setMetrics({
+          marketLeader: '',
+          avgPriceGap: 0,
+          activeCompetitors: 0,
+          priceUpdates: 0
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Fetch competitor prices only for active products
       const { data: competitors } = await supabase
         .from('competitor_prices')
         .select('*')
         .eq('merchant_id', user.id)
+        .in('baseline_id', activeBaselineIds)
         .order('last_updated', { ascending: false });
 
       if (competitors && competitors.length > 0) {
