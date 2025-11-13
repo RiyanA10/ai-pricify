@@ -122,14 +122,29 @@ export const UploadPage = () => {
 
       if (insertError) throw insertError;
 
-      toast({
-        title: 'Success!',
-        description: `${products.length} product(s) uploaded successfully`,
-      });
-
-      // Navigate to processing page with first product ID
+      // Trigger processing for ALL products
       if (insertedProducts && insertedProducts.length > 0) {
+        const processingPromises = insertedProducts.map(product => 
+          supabase.functions.invoke('process-pricing', {
+            body: { baseline_id: product.id }
+          })
+        );
+
+        // Start all processing jobs in parallel
+        await Promise.all(processingPromises);
+
+        toast({
+          title: 'Success!',
+          description: `${products.length} product(s) uploaded and processing started`,
+        });
+
+        // Navigate to processing page with first product ID to show status
         navigate(`/processing/${insertedProducts[0].id}`);
+      } else {
+        toast({
+          title: 'Success!',
+          description: 'Products uploaded successfully',
+        });
       }
 
     } catch (error) {
