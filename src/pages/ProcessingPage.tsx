@@ -122,7 +122,7 @@ export default function ProcessingPage() {
         {/* Back Button */}
         <Button
           variant="outline"
-          onClick={() => navigate('/')}
+          onClick={() => window.history.back()}
           className="mb-6 hover:shadow-lg transition-all animate-slide-up"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />

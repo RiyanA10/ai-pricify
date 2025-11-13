@@ -21,6 +21,7 @@ const Dashboard = ({ onNavigateToUpload }: DashboardProps) => {
     revenue: 0,
     productsOptimized: 0,
     activeAlerts: 0,
+    currency: 'SAR',
   });
   const [alerts, setAlerts] = useState<any[]>([]);
   const [opportunities, setOpportunities] = useState<any[]>([]);
@@ -56,6 +57,9 @@ const Dashboard = ({ onNavigateToUpload }: DashboardProps) => {
       // Calculate metrics
       const totalProducts = baselines?.length || 0;
       const optimizedProducts = pricingResults?.length || 0;
+      
+      // Get currency from first baseline (all products should have same currency)
+      const currency = baselines?.[0]?.currency || 'SAR';
       
       const totalProfit = pricingResults?.reduce((sum, result) => {
         return sum + (Number(result.profit_increase_amount) || 0);
@@ -110,6 +114,7 @@ const Dashboard = ({ onNavigateToUpload }: DashboardProps) => {
         revenue: totalProfit,
         productsOptimized: optimizedProducts,
         activeAlerts: newAlerts.length,
+        currency: currency,
       });
       setAlerts(newAlerts);
       setOpportunities(topOpportunities);
@@ -153,7 +158,7 @@ const Dashboard = ({ onNavigateToUpload }: DashboardProps) => {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-3">
+            <div className="flex flex-wrap items-center gap-2">
               <Button onClick={() => navigate('/products')} variant="outline" className="flex items-center gap-2">
                 <Package className="w-4 h-4" />
                 View All Products
@@ -228,7 +233,7 @@ const Dashboard = ({ onNavigateToUpload }: DashboardProps) => {
                 <p className="text-sm text-muted-foreground">Total Additional Profit</p>
                 <div className="flex items-baseline gap-2">
                   <span className="text-3xl font-bold text-foreground">{metrics.revenue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                  <DollarSign className="w-5 h-5 text-primary" />
+                  <span className="text-lg font-semibold text-primary">{metrics.currency}</span>
                 </div>
                 <p className="text-xs text-muted-foreground">from optimized pricing</p>
               </div>
