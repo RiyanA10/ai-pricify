@@ -63,7 +63,7 @@ export default function ProcessingPage() {
         .from('processing_status')
         .select('*')
         .eq('baseline_id', baselineId)
-        .order('created_at', { ascending: false })
+        .order('updated_at', { ascending: false })
         .limit(1)
         .maybeSingle();
 
