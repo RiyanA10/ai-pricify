@@ -69,12 +69,14 @@ export default function ResultsPage() {
 
       if (baselineError) throw baselineError;
 
-      // Get pricing results
+      // Get pricing results (most recent)
       const { data: results, error: resultsError } = await supabase
         .from('pricing_results')
         .select('*')
         .eq('baseline_id', baselineId)
-        .single();
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
       if (resultsError) throw resultsError;
 
