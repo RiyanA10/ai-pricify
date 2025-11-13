@@ -58,13 +58,16 @@ export default function ProcessingPage() {
 
   const checkProcessingStatus = async () => {
     try {
+      // Get the latest status record for this baseline (handle multiple rows)
       const { data, error } = await supabase
         .from('processing_status')
         .select('*')
         .eq('baseline_id', baselineId)
-        .single();
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
 
-      if (error) throw error;
+      if (error && error.code !== 'PGRST116') throw error;
 
       if (data?.status === 'completed') {
         navigate(`/results/${baselineId}`);
