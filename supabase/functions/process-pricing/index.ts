@@ -95,8 +95,8 @@ serve(async (req) => {
       current_step: 'fetching_inflation'
     });
 
-    // Process everything quickly without blocking
-    Promise.resolve().then(async () => {
+    // Process in background using EdgeRuntime.waitUntil
+    const backgroundTask = (async () => {
       try {
         // Step 1: Fetch inflation rate (instant)
         const { rate: inflationRate, source: inflationSource } = await fetchInflationRate(baseline.currency);
@@ -140,7 +140,17 @@ serve(async (req) => {
           })
           .eq('baseline_id', baseline_id);
       }
-    });
+    })();
+
+    // Use EdgeRuntime.waitUntil to keep function alive for background task
+    // @ts-ignore - EdgeRuntime is available in Deno Deploy
+    if (typeof EdgeRuntime !== 'undefined' && EdgeRuntime.waitUntil) {
+      // @ts-ignore
+      EdgeRuntime.waitUntil(backgroundTask);
+    } else {
+      // Fallback for local development
+      backgroundTask.catch(console.error);
+    }
 
     // Return immediately
     return new Response(JSON.stringify({ 
