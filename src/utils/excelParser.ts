@@ -53,8 +53,19 @@ export const parseExcelFile = async (file: File): Promise<{
         // Expected columns
         const expectedColumns = ['product_name', 'category', 'current_price', 'current_quantity', 'cost_per_unit', 'currency'];
         
-        // Process data rows (skip header)
-        for (let i = 1; i < jsonData.length; i++) {
+        // Process data rows (skip header) - Maximum 10 products
+        const maxProducts = 10;
+        const dataRowsToProcess = Math.min(jsonData.length - 1, maxProducts);
+        
+        if (jsonData.length - 1 > maxProducts) {
+          errors.push({ 
+            row: 0, 
+            field: 'file', 
+            message: `Maximum ${maxProducts} products allowed. Only the first ${maxProducts} products will be processed.` 
+          });
+        }
+        
+        for (let i = 1; i <= dataRowsToProcess; i++) {
           const row = jsonData[i];
           const rowNum = i + 1;
           

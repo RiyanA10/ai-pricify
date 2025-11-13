@@ -242,7 +242,7 @@ export const UploadPage = () => {
                 or click to browse
               </p>
               <p className="text-xs text-muted-foreground">
-                Supported: .xlsx, .xls, .csv (Max 5MB)
+                Supported: .xlsx, .xls, .csv (Max 5MB) • Maximum 10 products per upload
               </p>
             </label>
           </div>
