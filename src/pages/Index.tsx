@@ -8,7 +8,12 @@ import { LogOut, Home, Upload } from 'lucide-react';
 
 const Index = () => {
   const navigate = useNavigate();
-  const [currentView, setCurrentView] = useState<'dashboard' | 'upload'>('dashboard');
+  
+  // Check URL parameters for initial view
+  const searchParams = new URLSearchParams(window.location.search);
+  const initialView = searchParams.get('view') === 'upload' ? 'upload' : 'dashboard';
+  
+  const [currentView, setCurrentView] = useState<'dashboard' | 'upload'>(initialView);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
