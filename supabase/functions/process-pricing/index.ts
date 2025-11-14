@@ -255,9 +255,9 @@ async function scrapeMarketplacePrices(url: string, marketplace: string): Promis
     
     const selectors = {
       amazon: [
-        '.a-price-whole',
         'span.a-price > span.a-offscreen',
-        '.a-price .a-price-whole'
+        '.a-price-whole',
+        'span[data-a-size="xl"] > span.a-offscreen'
       ],
       noon: [
         '[data-qa="product-price"]',
@@ -275,17 +275,19 @@ async function scrapeMarketplacePrices(url: string, marketplace: string): Promis
         '[data-price]'
       ],
       walmart: [
-        '[itemprop="price"]',
-        'span[class*="price"]',
-        '.price-main'
+        'span[itemprop="price"]',
+        '[data-automation-id="product-price"]',
+        'div[data-testid="list-view"] span[class*="price"]'
       ],
       ebay: [
-        '.s-item__price',
-        'span[class*="POSITIVE"]'
+        'span.s-item__price',
+        'span.textSpan',
+        'div.x-price-primary > span'
       ],
       target: [
-        '[data-test="product-price"]',
-        'span[class*="price"]'
+        'span[data-test="product-price"]',
+        'span[data-test="current-price"]',
+        'div[data-test="product-price"] span'
       ]
     };
 

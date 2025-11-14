@@ -14,6 +14,38 @@ export type Database = {
   }
   public: {
     Tables: {
+      baseline_shares: {
+        Row: {
+          baseline_id: string
+          created_at: string | null
+          id: string
+          shared_by_user_id: string
+          shared_with_user_id: string
+        }
+        Insert: {
+          baseline_id: string
+          created_at?: string | null
+          id?: string
+          shared_by_user_id: string
+          shared_with_user_id: string
+        }
+        Update: {
+          baseline_id?: string
+          created_at?: string | null
+          id?: string
+          shared_by_user_id?: string
+          shared_with_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "baseline_shares_baseline_id_fkey"
+            columns: ["baseline_id"]
+            isOneToOne: false
+            referencedRelation: "product_baselines"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       competitor_prices: {
         Row: {
           average_price: number | null
