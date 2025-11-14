@@ -215,6 +215,8 @@ async function scrapeMarketplacePrices(url: string, marketplace: string): Promis
     }
 
     const html = await response.text();
+    console.log(`Received HTML length: ${html.length} characters from ${marketplace}`);
+    
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
     
@@ -263,9 +265,11 @@ async function scrapeMarketplacePrices(url: string, marketplace: string): Promis
     };
 
     const marketplaceSelectors = selectors[marketplace as keyof typeof selectors] || [];
+    console.log(`Trying ${marketplaceSelectors.length} selectors for ${marketplace}`);
     
     for (const selector of marketplaceSelectors) {
       const elements = doc.querySelectorAll(selector);
+      console.log(`Selector "${selector}" found ${elements.length} elements`);
       
       elements.forEach((el: any) => {
         const text = el.textContent || el.getAttribute('content') || '';
