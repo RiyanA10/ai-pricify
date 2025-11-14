@@ -270,21 +270,32 @@ async function scrapeMarketplacePrices(
         const titleEl = container.querySelector(config.title);
         const priceEl = container.querySelector(config.price);
         
-        if (!titleEl || !priceEl) return;
+        if (!titleEl || !priceEl) {
+          if (index < 3) console.log(`✗ Missing elements - title: ${!!titleEl}, price: ${!!priceEl}`);
+          return;
+        }
         
         const title = titleEl.textContent?.trim().toLowerCase() || '';
         const priceText = priceEl.textContent?.trim() || '';
         
-        // Validate: Title must contain at least 2 product keywords
+        if (index < 3) console.log(`Item ${index}: title="${title.substring(0, 80)}" price="${priceText}"`);
+        
+        // Validate: Title must contain at least 1 product keyword
         const matchCount = productKeywords.filter(keyword => 
           title.includes(keyword.toLowerCase())
         ).length;
         
-        if (matchCount < 2) return;
+        if (matchCount < 1) {
+          if (index < 3) console.log(`✗ No keyword match (found ${matchCount})`);
+          return;
+        }
         
         // Extract price
         const priceMatch = priceText.match(/[\d,]+\.?\d*/);
-        if (!priceMatch) return;
+        if (!priceMatch) {
+          if (index < 3) console.log(`✗ No price pattern match`);
+          return;
+        }
         
         const price = parseFloat(priceMatch[0].replace(/,/g, ''));
         
@@ -298,7 +309,7 @@ async function scrapeMarketplacePrices(
           console.log(`✗ Out of range: $${price} (expected: $${minPrice.toFixed(2)}-$${maxPrice.toFixed(2)})`);
         }
       } catch (err) {
-        // Skip invalid containers
+        if (index < 3) console.log(`✗ Error in container ${index}:`, err);
       }
     });
 
