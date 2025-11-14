@@ -316,35 +316,40 @@ async function scrapeMarketplacePrices(url: string, marketplace: string): Promis
       console.log(`Selector-based extraction failed, trying text-based extraction for ${marketplace}`);
       const bodyText = doc.body?.textContent || '';
       
-      // More aggressive price patterns for SAR and USD
+      // ONLY extract prices with clear currency indicators to avoid false positives
       const pricePatterns = [
         /(?:SAR|SR|ر\.س\.?)\s*[\d,]+\.?\d{0,2}/gi,  // SAR with prefix
         /[\d,]+\.?\d{0,2}\s*(?:SAR|SR|ر\.س\.?)/gi,  // SAR with suffix
-        /\$\s*[\d,]+\.?\d{0,2}/gi,                  // USD
-        /[\d,]{3,}\.?\d{0,2}/g                       // Plain numbers (3+ digits)
+        /\$[\d,]+\.?\d{0,2}/gi,                      // USD with $ prefix (no space)
+        /USD\s*[\d,]+\.?\d{0,2}/gi                   // USD with text prefix
       ];
       
-      const allMatches: string[] = [];
+      const seenPrices = new Set<number>();
+      
       pricePatterns.forEach(pattern => {
         const matches = bodyText.match(pattern);
         if (matches) {
-          allMatches.push(...matches);
+          matches.forEach((match) => {
+            const numMatch = match.match(/[\d,]+\.?\d*/);
+            if (numMatch) {
+              const price = parseFloat(numMatch[0].replace(/,/g, ''));
+              // Stricter price range and deduplicate
+              if (price > 50 && price < 50000 && !seenPrices.has(price)) {
+                prices.push(price);
+                seenPrices.add(price);
+              }
+            }
+          });
         }
       });
       
-      console.log(`Found ${allMatches.length} potential price matches in body text`);
+      // Limit to reasonable number of prices
+      if (prices.length > 50) {
+        prices.sort((a, b) => a - b);
+        prices.splice(50);
+      }
       
-      allMatches.forEach((match) => {
-        const numMatch = match.match(/[\d,]+\.?\d*/);
-        if (numMatch) {
-          const price = parseFloat(numMatch[0].replace(/,/g, ''));
-          if (price > 100 && price < 100000) { // Reasonable price range
-            prices.push(price);
-          }
-        }
-      });
-      
-      console.log(`Extracted ${prices.length} valid prices from text`);
+      console.log(`Extracted ${prices.length} unique prices from text with currency indicators`);
     }
 
     console.log(`Found ${prices.length} prices from ${marketplace} using ZenRows`);
