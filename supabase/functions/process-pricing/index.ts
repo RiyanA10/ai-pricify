@@ -216,37 +216,37 @@ async function scrapeMarketplacePrices(
       amazon: {
         container: 'div[data-component-type="s-search-result"]',
         title: 'h2 span',
-        price: 'span.a-price > span.a-offscreen'
+        price: '.a-price .a-offscreen, span.a-price-whole'
       },
       walmart: {
         container: 'div[data-item-id]',
         title: 'span[data-automation-id="product-title"]',
-        price: 'div[data-automation-id="product-price"] span'
+        price: 'span[itemprop="price"], div[data-automation-id="product-price"] span, span.w_iUH7'
       },
       ebay: {
         container: 'li.s-item',
         title: 'div.s-item__title',
-        price: 'span.s-item__price'
+        price: 'span.s-item__price, span.POSITIVE'
       },
       target: {
         container: 'div[data-test="@web/site-top-of-funnel/ProductCardWrapper"]',
         title: 'a[data-test="product-title"]',
-        price: 'span[data-test="current-price"]'
+        price: 'span[data-test="current-price"], span[data-test="product-price"]'
       },
       noon: {
         container: 'div[data-qa="product-item"]',
         title: '[data-qa="product-name"]',
-        price: '[data-qa="product-price"]'
+        price: '[data-qa="product-price"], strong'
       },
       extra: {
         container: 'div.product-item',
         title: '.product-title',
-        price: '.price'
+        price: '.price, .special-price'
       },
       jarir: {
         container: 'div.product-card',
         title: '.product-name',
-        price: '.price'
+        price: '.price, .final-price'
       }
     };
 
