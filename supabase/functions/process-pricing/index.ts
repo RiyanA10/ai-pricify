@@ -288,6 +288,27 @@ async function scrapeMarketplacePrices(url: string, marketplace: string): Promis
       if (prices.length > 0) break;
     }
 
+    // Fallback: Search entire body text for price patterns if selectors failed
+    if (prices.length === 0) {
+      console.log(`Selector-based extraction failed, trying text-based extraction for ${marketplace}`);
+      const bodyText = doc.body?.textContent || '';
+      const pricePattern = /(?:SAR|SR|ر\.س\.?|USD|$)\s*[\d,]+\.?\d{0,2}/gi;
+      const matches = bodyText.match(pricePattern);
+      
+      if (matches) {
+        console.log(`Found ${matches.length} potential price matches in body text`);
+        matches.forEach((match) => {
+          const numMatch = match.match(/[\d,]+\.?\d*/);
+          if (numMatch) {
+            const price = parseFloat(numMatch[0].replace(/,/g, ''));
+            if (price > 100 && price < 100000) { // Reasonable price range
+              prices.push(price);
+            }
+          }
+        });
+      }
+    }
+
     console.log(`Found ${prices.length} prices from ${marketplace} using ZenRows`);
     return prices.slice(0, 10);
     
