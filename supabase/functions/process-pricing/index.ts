@@ -292,6 +292,12 @@ async function fetchCompetitorPrices(
 ) {
   console.log('Fetching real competitor prices...');
   
+  // Delete ALL old competitor data for this baseline first to prevent duplicates
+  await supabase
+    .from('competitor_prices')
+    .delete()
+    .eq('baseline_id', baseline_id);
+  
   const marketplaces = currency === 'SAR' 
     ? [
         { name: 'amazon', search: 'https://www.amazon.sa/s?k=' },

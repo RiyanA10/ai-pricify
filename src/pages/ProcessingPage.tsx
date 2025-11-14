@@ -22,6 +22,7 @@ export default function ProcessingPage() {
     extra: 'pending',
     jarir: 'pending',
   });
+  const [hasStartedProcessing, setHasStartedProcessing] = useState(false);
 
   useEffect(() => {
     if (!baselineId) {
@@ -29,14 +30,41 @@ export default function ProcessingPage() {
       return;
     }
 
-    // Start processing automatically
-    startProcessing();
+    // Check if processing already started before triggering
+    checkIfProcessingStarted();
 
     // Poll for status updates - reduced frequency for better performance
     const interval = setInterval(checkProcessingStatus, 1000);
 
     return () => clearInterval(interval);
   }, [baselineId]);
+
+  const checkIfProcessingStarted = async () => {
+    try {
+      const { data } = await supabase
+        .from('processing_status')
+        .select('*')
+        .eq('baseline_id', baselineId)
+        .limit(1)
+        .maybeSingle();
+
+      if (!data) {
+        // No processing status exists, start it
+        await startProcessing();
+        setHasStartedProcessing(true);
+      } else {
+        // Processing already started
+        setHasStartedProcessing(true);
+      }
+    } catch (error) {
+      console.error('Failed to check processing status:', error);
+      // Try to start anyway if check failed
+      if (!hasStartedProcessing) {
+        await startProcessing();
+        setHasStartedProcessing(true);
+      }
+    }
+  };
 
   const startProcessing = async () => {
     try {
