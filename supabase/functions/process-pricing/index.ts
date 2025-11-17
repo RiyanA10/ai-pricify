@@ -152,23 +152,110 @@ async function fetchInflationRate(currency: string): Promise<{ rate: number; sou
   return { rate: 0.025, source: 'IMF Global Estimate' };
 }
 
+function normalizeProductName(name: string): string {
+  return name
+    .toLowerCase()
+    .replace(/\([^)]*\)/g, '') // Remove parentheses content
+    .replace(/\s*-\s*.*/g, '') // Remove dashes and everything after
+    .replace(/[^\w\s\u0600-\u06FF]/g, ' ') // Keep only alphanumeric and Arabic
+    .replace(/\b(the|with|for|and|or)\b/gi, '') // Remove common words
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function levenshteinDistance(str1: string, str2: string): number {
+  const matrix: number[][] = [];
+  
+  for (let i = 0; i <= str2.length; i++) {
+    matrix[i] = [i];
+  }
+  
+  for (let j = 0; j <= str1.length; j++) {
+    matrix[0][j] = j;
+  }
+  
+  for (let i = 1; i <= str2.length; i++) {
+    for (let j = 1; j <= str1.length; j++) {
+      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1,
+          matrix[i][j - 1] + 1,
+          matrix[i - 1][j] + 1
+        );
+      }
+    }
+  }
+  
+  return matrix[str2.length][str1.length];
+}
+
+function calculateSimilarity(product1: string, product2: string): number {
+  const norm1 = normalizeProductName(product1);
+  const norm2 = normalizeProductName(product2);
+  
+  if (norm1 === norm2) return 1.0;
+  
+  const distance = levenshteinDistance(norm1, norm2);
+  const maxLength = Math.max(norm1.length, norm2.length);
+  
+  return 1 - (distance / maxLength);
+}
+
+function extractPrice(text: string, expectedCurrency: string): { price: number; confidence: number } | null {
+  // Currency patterns with multiple formats
+  const patterns = [
+    // SAR formats
+    /(?:SAR|SR|ريال|ر\.س\.?)\s*([0-9,]+\.?[0-9]*)/i,
+    /([0-9,]+\.?[0-9]*)\s*(?:SAR|SR|ريال|ر\.س\.?)/i,
+    // USD formats
+    /\$\s*([0-9,]+\.?[0-9]*)/,
+    /([0-9,]+\.?[0-9]*)\s*(?:USD|usd)/,
+    // Generic number with decimals
+    /\b([0-9,]+\.[0-9]{2})\b/,
+    // Generic number
+    /\b([0-9,]+)\b/
+  ];
+  
+  let bestMatch: { price: number; confidence: number } | null = null;
+  
+  for (let i = 0; i < patterns.length; i++) {
+    const match = text.match(patterns[i]);
+    if (match) {
+      const priceStr = match[1].replace(/,/g, '');
+      const price = parseFloat(priceStr);
+      
+      if (!isNaN(price) && price > 0) {
+        // Confidence based on pattern quality and currency match
+        let confidence = 1.0 - (i * 0.1); // Earlier patterns have higher confidence
+        
+        // Check if currency matches expected
+        if (expectedCurrency === 'SAR' && match[0].match(/SAR|SR|ريال|ر\.س/i)) {
+          confidence += 0.2;
+        } else if (expectedCurrency === 'USD' && match[0].match(/\$|USD/i)) {
+          confidence += 0.2;
+        }
+        
+        if (!bestMatch || confidence > bestMatch.confidence) {
+          bestMatch = { price, confidence: Math.min(confidence, 1.0) };
+        }
+      }
+    }
+  }
+  
+  return bestMatch;
+}
+
 function simplifyProductName(productName: string): string {
-  let simplified = productName.split(',')[0].trim();
-  simplified = simplified.replace(/\([^)]*\)/g, '').trim();
-  simplified = simplified.replace(/\s*-\s*.*/g, '').trim();
-  
-  const removePatterns = [/5G/gi, /4G/gi, /LTE/gi, /WiFi/gi, /Bluetooth/gi, /\d+GB/gi, /\d+\.\d+\s*inch/gi];
-  removePatterns.forEach(pattern => {
-    simplified = simplified.replace(pattern, '').trim();
-  });
-  
-  simplified = simplified.replace(/\s+/g, ' ').trim();
-  return simplified;
+  return normalizeProductName(productName)
+    .split(',')[0]
+    .trim();
 }
 
 function extractProductKeywords(productName: string): string[] {
-  const simplified = simplifyProductName(productName);
-  return simplified.split(' ').filter(word => word.length > 2);
+  const normalized = normalizeProductName(productName);
+  return normalized.split(' ').filter(word => word.length > 2);
 }
 
 async function scrapeMarketplacePrices(
@@ -215,82 +302,109 @@ async function scrapeMarketplacePrices(
     const marketplaceConfig: Record<string, { container: string; title: string; price: string }> = {
       amazon: {
         container: 'div[data-component-type="s-search-result"]',
-        title: 'h2 span',
-        price: '.a-price .a-offscreen, span.a-price-whole'
+        title: 'h2 span, h2 a span',
+        price: '.a-price .a-offscreen, span.a-price-whole, .a-price-whole'
       },
       walmart: {
-        container: 'div[data-item-id]',
-        title: 'span[data-automation-id="product-title"]',
-        price: 'span[itemprop="price"], div[data-automation-id="product-price"] span, span.w_iUH7'
+        container: 'div[data-item-id], [data-testid="list-view"]',
+        title: 'span[data-automation-id="product-title"], a[link-identifier]',
+        price: 'span[itemprop="price"], div[data-automation-id="product-price"] span, [data-automation-id="product-price"]'
       },
       ebay: {
-        container: 'li.s-item',
-        title: 'div.s-item__title',
-        price: 'span.s-item__price, span.POSITIVE'
+        container: 'li.s-item, div.s-item__wrapper',
+        title: 'div.s-item__title, h3.s-item__title',
+        price: 'span.s-item__price, span.POSITIVE, .s-item__price'
       },
       target: {
         container: 'div[data-test="@web/site-top-of-funnel/ProductCardWrapper"]',
-        title: 'a[data-test="product-title"]',
+        title: 'a[data-test="product-title"], [data-test="product-title"]',
         price: 'span[data-test="current-price"], span[data-test="product-price"]'
       },
       noon: {
-        container: 'div[data-qa="product-item"]',
-        title: '[data-qa="product-name"]',
-        price: '[data-qa="product-price"], strong'
+        container: 'div[data-qa="product-item"], article',
+        title: '[data-qa="product-name"], .productContainer h2',
+        price: '[data-qa="product-price"], strong, .sellingPrice'
       },
       extra: {
-        container: 'div.product-item',
-        title: '.product-title',
-        price: '.price, .special-price'
+        container: 'div.product-item, div.product-card',
+        title: '.product-title, .product-name, h3',
+        price: '.price, .special-price, .final-price'
       },
       jarir: {
-        container: 'div.product-card',
-        title: '.product-name',
-        price: '.price, .final-price'
+        container: 'div.product-card, div.product-item',
+        title: '.product-name, .product-title, h3',
+        price: '.price, .final-price, .sale-price'
       }
     };
 
     const config = marketplaceConfig[marketplace];
     
     if (!config) {
-      console.log(`No container config for ${marketplace}`);
+      console.log(`No config for ${marketplace}`);
       return [];
     }
 
     const validPrices: number[] = [];
     const containers = doc.querySelectorAll(config.container);
     
-    console.log(`Found ${containers.length} product containers`);
+    console.log(`Found ${containers.length} containers`);
 
     const minPrice = baselinePrice * 0.3;
     const maxPrice = baselinePrice * 3;
+    const SIMILARITY_THRESHOLD = 0.65;
+    
+    const simplifiedName = simplifyProductName(productKeywords.join(' '));
 
-    containers.forEach((container: any, index: number) => {
+    containers.forEach((container: any, idx: number) => {
       try {
-        const titleEl = container.querySelector(config.title);
-        const priceEl = container.querySelector(config.price);
+        let titleEl: any = null;
+        for (const sel of config.title.split(',')) {
+          titleEl = container.querySelector(sel.trim());
+          if (titleEl) break;
+        }
+        
+        let priceEl: any = null;
+        for (const sel of config.price.split(',')) {
+          priceEl = container.querySelector(sel.trim());
+          if (priceEl) break;
+        }
         
         if (!titleEl || !priceEl) {
-          if (index < 3) console.log(`✗ Missing elements - title: ${!!titleEl}, price: ${!!priceEl}`);
+          if (idx < 5) console.log(`[${idx}] ✗ Missing`);
           return;
         }
         
-        const title = titleEl.textContent?.trim().toLowerCase() || '';
+        const title = titleEl.textContent?.trim() || '';
         const priceText = priceEl.textContent?.trim() || '';
         
-        if (index < 3) console.log(`Item ${index}: title="${title.substring(0, 80)}" price="${priceText}"`);
+        if (!title || !priceText) return;
         
-        // Validate: Title must contain at least 1 product keyword
-        const matchCount = productKeywords.filter(keyword => 
-          title.includes(keyword.toLowerCase())
-        ).length;
+        if (idx < 5) console.log(`[${idx}] "${title.substring(0, 60)}..." | "${priceText}"`);
         
-        if (matchCount < 1) {
-          if (index < 3) console.log(`✗ No keyword match (found ${matchCount})`);
+        const similarity = calculateSimilarity(simplifiedName, title);
+        
+        if (similarity < SIMILARITY_THRESHOLD) {
+          if (idx < 5) console.log(`[${idx}] ✗ Similarity: ${(similarity * 100).toFixed(0)}%`);
           return;
         }
         
-        // Extract price
+        const currency = baselinePrice > 100 ? 'SAR' : 'USD';
+        const extracted = extractPrice(priceText, currency);
+        
+        if (!extracted) return;
+        
+        const { price, confidence } = extracted;
+        
+        if (price >= minPrice && price <= maxPrice && confidence > 0.5) {
+          validPrices.push(price);
+          if (idx < 5) console.log(`[${idx}] ✓ ${price}`);
+        }
+      } catch (err) {
+        if (idx < 5) console.log(`[${idx}] Error:`, err);
+      }
+    });
+
+        // Extract price complete
         const priceMatch = priceText.match(/[\d,]+\.?\d*/);
         if (!priceMatch) {
           if (index < 3) console.log(`✗ No price pattern match`);
