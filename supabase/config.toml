@@ -4,6 +4,8 @@ project_id = "vysewjocqjndkagngeum"
 
 [functions.refresh-competitors]
 
+[functions.debug-zenrows]
+
 [functions.send-verification]
 
 [functions.verify-email]

@@ -8,6 +8,7 @@ import ProcessingPage from "./pages/ProcessingPage";
 import ResultsPage from "./pages/ResultsPage";
 import ProductListPage from "./pages/ProductListPage";
 import { CompetitiveIntelligencePage } from "./pages/CompetitiveIntelligencePage";
+import DebugZenrowsPage from "./pages/DebugZenrowsPage";
 import NotFound from "./pages/NotFound";
 import AuthPage from "./pages/AuthPage";
 import VerificationPage from "./pages/VerificationPage";
@@ -27,6 +28,7 @@ const App = () => (
           <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
           <Route path="/products" element={<ProtectedRoute><ProductListPage /></ProtectedRoute>} />
           <Route path="/competitive-intelligence" element={<ProtectedRoute><CompetitiveIntelligencePage /></ProtectedRoute>} />
+          <Route path="/debug-zenrows" element={<ProtectedRoute><DebugZenrowsPage /></ProtectedRoute>} />
           <Route path="/processing/:baselineId" element={<ProtectedRoute><ProcessingPage /></ProtectedRoute>} />
           <Route path="/results/:baselineId" element={<ProtectedRoute><ResultsPage /></ProtectedRoute>} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
