@@ -283,7 +283,7 @@ async function scrapeMarketplacePrices(
     const response = await fetch(zenrowsUrl.toString());
 
     if (!response.ok) {
-      console.error(`ZenRows returned HTTP ${response.status}`);
+      console.error(`HTTP ${response.status} from ${marketplace}`);
       return [];
     }
 
@@ -298,7 +298,6 @@ async function scrapeMarketplacePrices(
       return [];
     }
 
-    // Container-based extraction with title+price validation
     const marketplaceConfig: Record<string, { container: string; title: string; price: string }> = {
       amazon: {
         container: 'div[data-component-type="s-search-result"]',
