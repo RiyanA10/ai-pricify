@@ -194,55 +194,60 @@ function normalizeProductName(name: string): string {
   return name
     .toLowerCase()
     .replace(/\([^)]*\)/g, '') // Remove parentheses content
-    .replace(/\s*-\s*.*/g, '') // Remove dashes and everything after
-    .replace(/[^\w\s\u0600-\u06FF]/g, ' ') // Keep only alphanumeric and Arabic
-    .replace(/\b(the|with|for|and|or)\b/gi, '') // Remove common words
+    .replace(/[^\w\s\u0600-\u06FF-]/g, ' ') // Keep alphanumeric, Arabic, and hyphens
+    .replace(/\b(the|with|for|and|or|in)\b/gi, '') // Remove common words
     .replace(/\s+/g, ' ')
     .trim();
 }
 
-function levenshteinDistance(str1: string, str2: string): number {
-  const matrix: number[][] = [];
+function extractKeyTerms(name: string): string[] {
+  const normalized = normalizeProductName(name);
+  // Extract brand, model numbers, and key identifiers
+  const terms = normalized.split(/\s+/).filter(term => 
+    term.length > 2 && // Skip very short words
+    !/^(gb|tb|inch|mm|cm)$/i.test(term) // Skip common units
+  );
+  return terms;
+}
+
+function calculateSimilarity(product1: string, product2: string): number {
+  const terms1 = extractKeyTerms(product1);
+  const terms2 = extractKeyTerms(product2);
   
-  for (let i = 0; i <= str2.length; i++) {
-    matrix[i] = [i];
-  }
+  if (terms1.length === 0 || terms2.length === 0) return 0;
   
-  for (let j = 0; j <= str1.length; j++) {
-    matrix[0][j] = j;
-  }
+  // Count matching terms
+  let matchCount = 0;
+  let exactModelMatch = false;
   
-  for (let i = 1; i <= str2.length; i++) {
-    for (let j = 1; j <= str1.length; j++) {
-      if (str2.charAt(i - 1) === str1.charAt(j - 1)) {
-        matrix[i][j] = matrix[i - 1][j - 1];
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i - 1][j - 1] + 1,
-          matrix[i][j - 1] + 1,
-          matrix[i - 1][j] + 1
-        );
+  for (const term1 of terms1) {
+    for (const term2 of terms2) {
+      // Exact match
+      if (term1 === term2) {
+        matchCount++;
+        // Check if it's a model number (contains digits and letters)
+        if (/\d/.test(term1) && /[a-z]/i.test(term1)) {
+          exactModelMatch = true;
+        }
+        break;
+      }
+      // Partial match for longer terms (e.g., "iphone" matches "iphone17")
+      if (term1.length >= 4 && term2.includes(term1)) {
+        matchCount += 0.7;
+        break;
+      }
+      if (term2.length >= 4 && term1.includes(term2)) {
+        matchCount += 0.7;
+        break;
       }
     }
   }
   
-  return matrix[str2.length][str1.length];
-}
-
-function calculateSimilarity(product1: string, product2: string): number {
-  const norm1 = normalizeProductName(product1);
-  const norm2 = normalizeProductName(product2);
+  // Calculate base similarity
+  const similarity = matchCount / Math.max(terms1.length, terms2.length);
   
-  if (norm1 === norm2) return 1.0;
-  
-  // Remove model years/numbers for better matching (e.g., "17" vs "15", "12")
-  const withoutYears1 = norm1.replace(/\b(1[0-9]|2[0-9])\b/g, '');
-  const withoutYears2 = norm2.replace(/\b(1[0-9]|2[0-9])\b/g, '');
-  
-  const distance = levenshteinDistance(withoutYears1, withoutYears2);
-  const maxLength = Math.max(withoutYears1.length, withoutYears2.length);
-  
-  return 1 - (distance / maxLength);
+  // Boost if model number matches exactly
+  return exactModelMatch ? Math.min(similarity * 1.5, 1.0) : similarity;
 }
 
 function extractPrice(text: string, expectedCurrency: string): { price: number; confidence: number } | null {
