@@ -446,25 +446,6 @@ async function scrapeMarketplacePrices(
         if (i < 5) console.log(`[${i}] Error:`, err);
       }
     });
-          if (i < 3) console.log(`✗ No price match`);
-          return;
-        }
-        
-        const price = parseFloat(priceMatch[0].replace(/,/g, ''));
-        
-        // Validate: Price must be within reasonable range (30%-300% of baseline)
-        if (price >= minPrice && price <= maxPrice) {
-          validPrices.push(price);
-          if (i < 3) {
-            console.log(`✓ "${title.substring(0, 50)}..." = $${price}`);
-          }
-        } else if (i < 3) {
-          console.log(`✗ Out of range: $${price}`);
-        }
-      } catch (err) {
-        if (i < 3) console.log(`✗ Error:`, err);
-      }
-    });
 
     console.log(`Extracted ${validPrices.length} prices`);
     return validPrices.slice(0, 20);

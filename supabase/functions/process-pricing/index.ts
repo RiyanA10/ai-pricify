@@ -404,30 +404,7 @@ async function scrapeMarketplacePrices(
       }
     });
 
-        // Extract price complete
-        const priceMatch = priceText.match(/[\d,]+\.?\d*/);
-        if (!priceMatch) {
-          if (index < 3) console.log(`✗ No price pattern match`);
-          return;
-        }
-        
-        const price = parseFloat(priceMatch[0].replace(/,/g, ''));
-        
-        // Validate: Price must be within reasonable range (30%-300% of baseline)
-        if (price >= minPrice && price <= maxPrice) {
-          validPrices.push(price);
-          if (index < 3) {
-            console.log(`✓ Match: "${title.substring(0, 60)}..." = $${price}`);
-          }
-        } else if (index < 3) {
-          console.log(`✗ Out of range: $${price} (expected: $${minPrice.toFixed(2)}-$${maxPrice.toFixed(2)})`);
-        }
-      } catch (err) {
-        if (index < 3) console.log(`✗ Error in container ${index}:`, err);
-      }
-    });
-
-    console.log(`Extracted ${validPrices.length} validated prices (range: $${minPrice.toFixed(2)}-$${maxPrice.toFixed(2)})`);
+    console.log(`Extracted ${validPrices.length} validated prices`);
     return validPrices.slice(0, 20);
     
   } catch (error) {
