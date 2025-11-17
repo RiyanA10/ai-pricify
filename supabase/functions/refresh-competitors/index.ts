@@ -235,13 +235,22 @@ function calculateSimilarity(product1: string, product2: string): number {
   
   if (norm1 === norm2) return 1.0;
   
-  const distance = levenshteinDistance(norm1, norm2);
-  const maxLength = Math.max(norm1.length, norm2.length);
+  // Remove model years/numbers for better matching (e.g., "17" vs "15", "12")
+  const withoutYears1 = norm1.replace(/\b(1[0-9]|2[0-9])\b/g, '');
+  const withoutYears2 = norm2.replace(/\b(1[0-9]|2[0-9])\b/g, '');
+  
+  const distance = levenshteinDistance(withoutYears1, withoutYears2);
+  const maxLength = Math.max(withoutYears1.length, withoutYears2.length);
   
   return 1 - (distance / maxLength);
 }
 
 function extractPrice(text: string, expectedCurrency: string): { price: number; confidence: number } | null {
+  if (!text) return null;
+  
+  // Clean up text - be aggressive with removal
+  text = text.replace(/from|as low as|starting at|save|off|each|per|month|\/mo/gi, '').trim();
+  
   // Currency patterns with multiple formats
   const patterns = [
     // SAR formats
@@ -252,7 +261,7 @@ function extractPrice(text: string, expectedCurrency: string): { price: number; 
     /([0-9,]+\.?[0-9]*)\s*(?:USD|usd)/,
     // Generic number with decimals
     /\b([0-9,]+\.[0-9]{2})\b/,
-    // Generic number
+    // Generic number (fallback)
     /\b([0-9,]+)\b/
   ];
   
@@ -388,7 +397,7 @@ async function scrapeMarketplacePrices(
 
     const minPrice = baselinePrice * 0.3;
     const maxPrice = baselinePrice * 3;
-    const SIMILARITY_THRESHOLD = 0.65;
+    const SIMILARITY_THRESHOLD = 0.5; // Lowered to capture iPhone 15/12 as matches for iPhone 17
     
     const simplifiedName = simplifyProductName(productKeywords.join(' '));
 
@@ -435,11 +444,11 @@ async function scrapeMarketplacePrices(
         
         const { price, confidence } = extracted;
         
-        if (price >= minPrice && price <= maxPrice && confidence > 0.5) {
+        if (price >= minPrice && price <= maxPrice && confidence > 0.4) { // Lowered confidence threshold
           validPrices.push(price);
           if (i < 5) console.log(`[${i}] ✓ ${price} (sim:${(similarity*100).toFixed(0)}% conf:${(confidence*100).toFixed(0)}%)`);
         } else if (i < 5) {
-          console.log(`[${i}] ✗ Invalid: price=${price}, range=[${minPrice}-${maxPrice}]`);
+          console.log(`[${i}] ✗ Invalid: price=${price}, range=[${minPrice}-${maxPrice}], conf=${(confidence*100).toFixed(0)}%`);
         }
       } catch (err) {
         if (i < 5) console.log(`[${i}] Error:`, err);
