@@ -316,31 +316,47 @@ async function scrapeMarketplacePrices(
   productKeywords: string[], 
   baselinePrice: number
 ): Promise<number[]> {
-  const zenrowsApiKey = Deno.env.get('ZENROWS_API_KEY');
+  const scrapingbeeApiKey = Deno.env.get('SCRAPINGBEE_API_KEY');
   
-  if (!zenrowsApiKey) {
-    console.error('ZENROWS_API_KEY not configured');
+  if (!scrapingbeeApiKey) {
+    console.error('SCRAPINGBEE_API_KEY not configured');
     return [];
   }
   
   try {
-    console.log(`Searching for: [${productKeywords.join(', ')}]`);
+    console.log(`🐝 ScrapingBee: Searching for: [${productKeywords.join(', ')}]`);
+    console.log(`🔗 URL: ${url}`);
     
-    const zenrowsUrl = new URL('https://api.zenrows.com/v1/');
-    zenrowsUrl.searchParams.set('url', url);
-    zenrowsUrl.searchParams.set('apikey', zenrowsApiKey);
-    zenrowsUrl.searchParams.set('js_render', 'true');
-    zenrowsUrl.searchParams.set('premium_proxy', 'true');
+    // Determine country code based on URL
+    const countryCode = url.includes('.sa') || url.includes('noon.com') || url.includes('extra.com') || url.includes('jarir.com') ? 'sa' : 'us';
     
-    const response = await fetch(zenrowsUrl.toString());
+    const scrapingbeeUrl = new URL('https://app.scrapingbee.com/api/v1/');
+    scrapingbeeUrl.searchParams.set('api_key', scrapingbeeApiKey);
+    scrapingbeeUrl.searchParams.set('url', url);
+    scrapingbeeUrl.searchParams.set('render_js', 'true');
+    scrapingbeeUrl.searchParams.set('wait', '3000');
+    scrapingbeeUrl.searchParams.set('wait_browser', 'load');
+    scrapingbeeUrl.searchParams.set('premium_proxy', 'true');
+    scrapingbeeUrl.searchParams.set('country_code', countryCode);
+    scrapingbeeUrl.searchParams.set('block_ads', 'true');
+    scrapingbeeUrl.searchParams.set('block_resources', 'true');
+    scrapingbeeUrl.searchParams.set('return_page_source', 'true');
+    
+    const response = await fetch(scrapingbeeUrl.toString(), {
+      method: 'GET',
+      headers: {
+        'Accept': 'text/html',
+      },
+    });
 
     if (!response.ok) {
-      console.error(`HTTP ${response.status}`);
+      const errorText = await response.text();
+      console.error(`❌ ScrapingBee HTTP ${response.status}: ${errorText}`);
       return [];
     }
 
     const html = await response.text();
-    console.log(`Received ${html.length} chars`);
+    console.log(`✅ Received ${html.length} chars`);
     
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
