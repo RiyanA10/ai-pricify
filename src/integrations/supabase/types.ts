@@ -96,6 +96,51 @@ export type Database = {
           },
         ]
       }
+      competitor_products: {
+        Row: {
+          baseline_id: string
+          created_at: string | null
+          currency: string
+          id: string
+          marketplace: string
+          merchant_id: string
+          price: number
+          price_ratio: number
+          product_name: string
+          product_url: string | null
+          rank: number
+          similarity_score: number
+        }
+        Insert: {
+          baseline_id: string
+          created_at?: string | null
+          currency: string
+          id?: string
+          marketplace: string
+          merchant_id: string
+          price: number
+          price_ratio: number
+          product_name: string
+          product_url?: string | null
+          rank: number
+          similarity_score: number
+        }
+        Update: {
+          baseline_id?: string
+          created_at?: string | null
+          currency?: string
+          id?: string
+          marketplace?: string
+          merchant_id?: string
+          price?: number
+          price_ratio?: number
+          product_name?: string
+          product_url?: string | null
+          rank?: number
+          similarity_score?: number
+        }
+        Relationships: []
+      }
       email_verifications: {
         Row: {
           attempts: number | null

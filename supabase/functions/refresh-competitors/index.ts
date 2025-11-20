@@ -36,8 +36,8 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.amazon.sa/s?k=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 3000,
-      blockResources: true,
+      wait: 6000,
+      blockResources: false,
       blockAds: true,
       countryCode: 'sa'
     },
@@ -107,8 +107,8 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.extra.com/en-sa/search?q=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 3000,
-      blockResources: true,
+      wait: 6000,
+      blockResources: false,
       blockAds: true,
       countryCode: 'sa'
     },
@@ -148,8 +148,8 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.jarir.com/search/?q=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 3000,
-      blockResources: true,
+      wait: 6000,
+      blockResources: false,
       blockAds: true,
       countryCode: 'sa'
     },
@@ -388,49 +388,50 @@ function extractPrice(text: string, expectedCurrency: string): { price: number; 
  *   "Samsung Galaxy S24 Ultra Premium Edition" → "Samsung Galaxy S24 Ultra"
  */
 function extractCoreProductName(fullName: string): string {
-  // Remove content in parentheses/brackets
-  let cleaned = fullName
-    .replace(/\([^)]*\)/g, '')
-    .replace(/\[[^\]]*\]/g, '');
+  // Remove punctuation but keep spaces
+  let cleaned = fullName.replace(/[^\w\s\u0600-\u06FF-]/g, ' ');
   
-  // Remove common marketing words
+  // Marketing words to remove (NOT product categories!)
   const marketingWords = [
     'the', 'best', 'premium', 'deluxe', 'ultimate', 'professional',
     'wireless', 'bluetooth', 'noise', 'canceling', 'cancelling',
     'edition', 'version', 'original', 'authentic', 'genuine',
     'new', 'latest', 'upgraded', 'advanced', 'enhanced',
-    'black', 'white', 'blue', 'red', 'silver', 'gold'
+    'black', 'white', 'blue', 'red', 'silver', 'gold', 'gray', 'grey'
+    // ❌ NOT removing: headphones, phone, laptop, tv, speaker, etc.
   ];
   
   const words = cleaned
     .toLowerCase()
     .split(/\s+/)
     .filter(word => {
-      // Keep if:
-      // 1. Not a marketing word
-      // 2. Contains numbers (model numbers)
-      // 3. Length > 1
       const hasNumbers = /\d/.test(word);
       const isMarketing = marketingWords.includes(word);
       return word.length > 1 && (!isMarketing || hasNumbers);
     });
   
-  // Take first 2-4 significant words (brand + model)
-  const coreWords = words.slice(0, Math.min(4, words.length));
-  
-  return coreWords.join(' ').trim();
+  // Take first 4-5 words (brand + model + category)
+  return words.slice(0, Math.min(5, words.length)).join(' ').trim();
 }
 
 // ========================================
 // SCRAPING FUNCTION
 // ========================================
 
+interface ScrapedProduct {
+  name: string;
+  price: number;
+  similarity: number;
+  priceRatio: number;
+  url?: string;
+}
+
 async function scrapeMarketplacePrices(
   config: MarketplaceConfig,
   productName: string,
   baselinePrice: number,
   currency: string
-): Promise<number[]> {
+): Promise<ScrapedProduct[]> {
   const scrapingbeeApiKey = Deno.env.get('SCRAPINGBEE_API_KEY');
   
   if (!scrapingbeeApiKey) {
@@ -475,12 +476,10 @@ async function scrapeMarketplacePrices(
       return [];
     }
     
-    const validPrices: number[] = [];
-    const minPrice = baselinePrice * 0.3;
-    const maxPrice = baselinePrice * 3;
+    const products: ScrapedProduct[] = [];
     const normalizedSearch = normalizeProductName(productName);
     
-    for (let i = 0; i < Math.min(containers.length, 10); i++) {
+    for (let i = 0; i < Math.min(containers.length, 50); i++) {
       const container = containers[i];
       
       const nameEl = trySelectOne(container, config.selectors.productName);
@@ -489,12 +488,6 @@ async function scrapeMarketplacePrices(
       const name = nameEl.textContent?.trim();
       if (!name) continue;
       
-      const similarity = calculateSimilarity(normalizedSearch, normalizeProductName(name));
-      if (similarity < 0.4) {
-        if (i < 3) console.log(`   [${i}] ✗ Low similarity (${(similarity * 100).toFixed(0)}%): "${name.slice(0, 50)}..."`);
-        continue;
-      }
-      
       const priceEl = trySelectOne(container, config.selectors.price);
       if (!priceEl) continue;
       
@@ -502,17 +495,45 @@ async function scrapeMarketplacePrices(
       if (!priceText) continue;
       
       const extracted = extractPrice(priceText, currency);
-      if (!extracted) continue;
+      if (!extracted || extracted.price <= 0) continue;
       
-      const { price, confidence } = extracted;
-      if (price >= minPrice && price <= maxPrice && confidence > 0.4) {
-        validPrices.push(price);
-        console.log(`   ✅ [${i}] "${name.slice(0, 50)}..." - ${price} ${currency} (${(similarity * 100).toFixed(0)}% match)`);
+      const similarity = calculateSimilarity(normalizedSearch, normalizeProductName(name));
+      const priceRatio = extracted.price / baselinePrice;
+      
+      // Try to extract product URL
+      let productUrl: string | undefined;
+      try {
+        const linkEl = container.querySelector('a[href]');
+        if (linkEl) {
+          const href = linkEl.getAttribute('href');
+          if (href) {
+            productUrl = href.startsWith('http') ? href : new URL(href, config.searchUrl).href;
+          }
+        }
+      } catch (e) {
+        // Ignore URL extraction errors
+      }
+      
+      // ✅ NO FILTERING - Store everything!
+      products.push({
+        name,
+        price: extracted.price,
+        similarity,
+        priceRatio,
+        url: productUrl
+      });
+      
+      if (i < 5) {
+        console.log(`   [${i}] "${name.slice(0, 40)}..." - ${extracted.price} ${currency} (${(similarity * 100).toFixed(0)}% match, ratio: ${priceRatio.toFixed(2)})`);
       }
     }
     
-    console.log(`   Extracted ${validPrices.length} valid prices`);
-    return validPrices;
+    console.log(`   Extracted ${products.length} products`);
+    
+    // Sort by similarity DESC, keep top 20
+    return products
+      .sort((a, b) => b.similarity - a.similarity)
+      .slice(0, 20);
     
   } catch (error: any) {
     console.error(`❌ Error:`, error.message);
@@ -595,8 +616,14 @@ serve(async (req) => {
     console.log(`📦 Original: "${baseline.product_name}"`);
     console.log(`🎯 Core search: "${coreProductName}"`);
 
+    // Delete existing data for this baseline
     await supabase
       .from('competitor_prices')
+      .delete()
+      .eq('baseline_id', baseline_id);
+    
+    await supabase
+      .from('competitor_products')
       .delete()
       .eq('baseline_id', baseline_id);
 
@@ -611,14 +638,40 @@ serve(async (req) => {
         const config = MARKETPLACE_CONFIGS[marketplaceKey];
         console.log(`\n=== Scraping ${config.name} ===`);
         
-      const prices = await scrapeMarketplacePrices(
-        config,
-        coreProductName,  // Use core name instead of full name
-        baseline.current_price,
-        baseline.currency
-      );
+        const products = await scrapeMarketplacePrices(
+          config,
+          coreProductName,
+          baseline.current_price,
+          baseline.currency
+        );
         
-        if (prices.length > 0) {
+        if (products.length > 0) {
+          // Insert each product into competitor_products table
+          const productRows = products.map((product, index) => ({
+            baseline_id,
+            merchant_id: baseline.merchant_id,
+            marketplace: marketplaceKey,
+            product_name: product.name,
+            price: product.price,
+            similarity_score: product.similarity,
+            price_ratio: product.priceRatio,
+            product_url: product.url,
+            currency: baseline.currency,
+            rank: index + 1
+          }));
+          
+          const { error: productsError } = await supabase
+            .from('competitor_products')
+            .insert(productRows);
+          
+          if (productsError) {
+            console.error('Error inserting competitor products:', productsError);
+          } else {
+            console.log(`✓ Inserted ${products.length} products into competitor_products`);
+          }
+          
+          // Calculate aggregates for backward compatibility
+          const prices = products.map(p => p.price);
           const lowest = Math.min(...prices);
           const highest = Math.max(...prices);
           const average = prices.reduce((a, b) => a + b, 0) / prices.length;
@@ -631,20 +684,20 @@ serve(async (req) => {
             average_price: average,
             highest_price: highest,
             currency: baseline.currency,
-            products_found: prices.length,
+            products_found: products.length,
             fetch_status: 'success'
           });
           
           results.push({
             marketplace: config.name,
             status: 'success',
-            products_found: prices.length,
+            products_found: products.length,
             lowest,
             average,
             highest
           });
           
-          console.log(`✓ ${prices.length} prices: ${lowest.toFixed(2)}-${highest.toFixed(2)} ${baseline.currency}`);
+          console.log(`✓ ${products.length} products: ${lowest.toFixed(2)}-${highest.toFixed(2)} ${baseline.currency}`);
         } else {
           await supabase.from('competitor_prices').insert({
             baseline_id,
