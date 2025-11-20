@@ -12,7 +12,9 @@ import DebugZenrowsPage from "./pages/DebugZenrowsPage";
 import NotFound from "./pages/NotFound";
 import AuthPage from "./pages/AuthPage";
 import VerificationPage from "./pages/VerificationPage";
+import AdminPage from "./pages/AdminPage";
 import ProtectedRoute from "./components/ProtectedRoute";
+import AdminRoute from "./components/AdminRoute";
 
 const queryClient = new QueryClient();
 
@@ -31,6 +33,7 @@ const App = () => (
           <Route path="/debug-zenrows" element={<ProtectedRoute><DebugZenrowsPage /></ProtectedRoute>} />
           <Route path="/processing/:baselineId" element={<ProtectedRoute><ProcessingPage /></ProtectedRoute>} />
           <Route path="/results/:baselineId" element={<ProtectedRoute><ResultsPage /></ProtectedRoute>} />
+          <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
