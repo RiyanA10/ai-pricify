@@ -9,3 +9,5 @@ project_id = "vysewjocqjndkagngeum"
 [functions.send-verification]
 
 [functions.verify-email]
+
+[functions.admin]
