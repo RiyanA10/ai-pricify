@@ -415,6 +415,39 @@ function extractCoreProductName(fullName: string): string {
 }
 
 // ========================================
+// ACCESSORY DETECTION
+// ========================================
+
+/**
+ * Detect if a product is an accessory or replacement part
+ * Context-aware: Used to prevent accessories from contaminating main product pricing
+ */
+function isAccessoryOrReplacement(productName: string): boolean {
+  const accessoryKeywords = [
+    // Replacement parts
+    'replacement', 'replace', 'spare', 'parts',
+    
+    // Ear accessories
+    'earpads', 'ear pads', 'ear pad', 'cushion', 'cushions', 'foam', 'tips',
+    
+    // Cases & covers
+    'case', 'cover', 'protective', 'pouch', 'bag', 'hard case', 'soft case',
+    
+    // Cables & adapters
+    'cable', 'cord', 'wire', 'adapter', 'charger', 'charging cable',
+    
+    // Sets/pieces (not full product)
+    'pcs', 'pieces', 'pair', 'set of', 'pack of', '2pcs', '3pcs', '4pcs',
+    
+    // Arabic
+    'قطع غيار', 'قطع', 'غيار', 'بديل', 'حافظة', 'كفر', 'غطاء', 'وسادة', 'كابل'
+  ];
+  
+  const lowerName = productName.toLowerCase();
+  return accessoryKeywords.some(keyword => lowerName.includes(keyword));
+}
+
+// ========================================
 // SCRAPING FUNCTION
 // ========================================
 
@@ -611,6 +644,11 @@ serve(async (req) => {
 
     console.log('Refreshing competitor prices for:', baseline.product_name);
     
+    // Check if baseline product is an accessory
+    const baselineIsAccessory = isAccessoryOrReplacement(baseline.product_name);
+    console.log(`\n🔍 Baseline "${baseline.product_name}" is ${baselineIsAccessory ? 'AN ACCESSORY' : 'A MAIN PRODUCT'}`);
+    console.log(`   Filter mode: ${baselineIsAccessory ? 'Keep all accessories' : 'Filter OUT accessories'}`);
+    
     // Extract core product name for better search results
     const coreProductName = extractCoreProductName(baseline.product_name);
     console.log(`📦 Original: "${baseline.product_name}"`);
@@ -638,12 +676,25 @@ serve(async (req) => {
         const config = MARKETPLACE_CONFIGS[marketplaceKey];
         console.log(`\n=== Scraping ${config.name} ===`);
         
-        const products = await scrapeMarketplacePrices(
+        let products = await scrapeMarketplacePrices(
           config,
           coreProductName,
           baseline.current_price,
           baseline.currency
         );
+        
+        // Apply smart filtering: If baseline is NOT an accessory, filter OUT accessories
+        if (!baselineIsAccessory && products.length > 0) {
+          const beforeFilter = products.length;
+          products = products.filter(product => {
+            const isAccessory = isAccessoryOrReplacement(product.name);
+            if (isAccessory) {
+              console.log(`⏭️ Filtered accessory: "${product.name.slice(0, 60)}..."`);
+            }
+            return !isAccessory;
+          });
+          console.log(`🔍 Filtering: ${beforeFilter} products → ${products.length} products (removed ${beforeFilter - products.length} accessories)`);
+        }
         
         if (products.length > 0) {
           // Insert each product into competitor_products table
