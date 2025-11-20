@@ -56,8 +56,15 @@ serve(async (req) => {
       });
     }
 
-    const url = new URL(req.url);
-    const action = url.searchParams.get('action');
+    // Read action from request body
+    const { action } = await req.json();
+
+    if (!action) {
+      return new Response(JSON.stringify({ error: 'Action parameter required' }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     switch (action) {
       case 'list-users': {
@@ -122,7 +129,9 @@ serve(async (req) => {
       }
 
       case 'delete-user': {
-        const { userId } = await req.json();
+        const body = await req.clone().json();
+        const { userId } = body;
+        
         if (!userId) {
           return new Response(JSON.stringify({ error: 'User ID required' }), {
             status: 400,
