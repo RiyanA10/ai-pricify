@@ -301,6 +301,88 @@ serve(async (req) => {
         });
       }
 
+      case 'product-competitor-details': {
+        // Get all baselines with their full details
+        const { data: baselines } = await supabase
+          .from('product_baselines')
+          .select('*')
+          .is('deleted_at', null)
+          .order('created_at', { ascending: false });
+
+        // Get auth users for merchant emails
+        const { data: authUsers } = await supabase.auth.admin.listUsers();
+
+        // Get all competitor products
+        const { data: allCompetitors } = await supabase
+          .from('competitor_products')
+          .select('*');
+
+        // Get pricing results to see which were used
+        const { data: pricingResults } = await supabase
+          .from('pricing_results')
+          .select('*');
+
+        const productDetails = baselines?.map(baseline => {
+          const merchant = authUsers?.users.find(u => u.id === baseline.merchant_id);
+          const competitors = allCompetitors?.filter(c => c.baseline_id === baseline.id) || [];
+          const result = pricingResults?.find(r => r.baseline_id === baseline.id);
+
+          // Top 5 competitors by rank are typically used in calculations
+          const usedCompetitors = competitors
+            .filter(c => c.rank <= 5)
+            .sort((a, b) => a.rank - b.rank);
+
+          const filteredCompetitors = competitors
+            .filter(c => c.rank > 5)
+            .map(c => ({
+              ...c,
+              filterReason: getFilterReason(c, baseline),
+            }));
+
+          return {
+            baseline: {
+              id: baseline.id,
+              product_name: baseline.product_name,
+              current_price: baseline.current_price,
+              currency: baseline.currency,
+              category: baseline.category,
+              created_at: baseline.created_at,
+              merchant_email: merchant?.email || 'Unknown',
+            },
+            totalCompetitors: competitors.length,
+            usedCompetitors: usedCompetitors.map(c => ({
+              product_name: c.product_name,
+              price: c.price,
+              marketplace: c.marketplace,
+              similarity_score: c.similarity_score,
+              price_ratio: c.price_ratio,
+              rank: c.rank,
+              product_url: c.product_url,
+            })),
+            filteredCompetitors: filteredCompetitors.map(c => ({
+              product_name: c.product_name,
+              price: c.price,
+              marketplace: c.marketplace,
+              similarity_score: c.similarity_score,
+              price_ratio: c.price_ratio,
+              rank: c.rank,
+              product_url: c.product_url,
+              filterReason: c.filterReason,
+            })),
+            marketData: result ? {
+              market_average: result.market_average,
+              market_lowest: result.market_lowest,
+              market_highest: result.market_highest,
+              suggested_price: result.suggested_price,
+            } : null,
+          };
+        }) || [];
+
+        return new Response(JSON.stringify({ productDetails }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       default:
         return new Response(JSON.stringify({ error: 'Invalid action' }), {
           status: 400,
@@ -316,3 +398,22 @@ serve(async (req) => {
     });
   }
 });
+
+// Helper function to determine why a competitor was filtered
+function getFilterReason(competitor: any, baseline: any): string {
+  const reasons: string[] = [];
+  
+  if (competitor.similarity_score < 0.5) {
+    reasons.push('Low similarity score');
+  }
+  
+  if (competitor.price_ratio > 3 || competitor.price_ratio < 0.33) {
+    reasons.push('Extreme price difference');
+  }
+  
+  if (competitor.rank > 10) {
+    reasons.push('Low rank position');
+  }
+  
+  return reasons.length > 0 ? reasons.join(', ') : 'Outside top 5';
+}
