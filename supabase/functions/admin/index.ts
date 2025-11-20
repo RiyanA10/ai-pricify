@@ -185,6 +185,122 @@ serve(async (req) => {
         });
       }
 
+      case 'competitor-analytics': {
+        // Get all baselines with their competitor data
+        const { data: baselines } = await supabase
+          .from('product_baselines')
+          .select('*')
+          .is('deleted_at', null);
+
+        // Get all competitor products
+        const { data: competitors } = await supabase
+          .from('competitor_products')
+          .select('*');
+
+        // Get all competitor prices (aggregated)
+        const { data: prices } = await supabase
+          .from('competitor_prices')
+          .select('*');
+
+        // Get pricing results
+        const { data: results } = await supabase
+          .from('pricing_results')
+          .select('*');
+
+        // Calculate metrics
+        const totalUploads = baselines?.length || 0;
+        const baselineIds = baselines?.map(b => b.id) || [];
+        
+        // Competitor distribution
+        const competitorsByBaseline = new Map();
+        competitors?.forEach(comp => {
+          const count = competitorsByBaseline.get(comp.baseline_id) || 0;
+          competitorsByBaseline.set(comp.baseline_id, count + 1);
+        });
+
+        const distribution = {
+          zero: 0,
+          one: 0,
+          twoToThree: 0,
+          fourPlus: 0,
+        };
+
+        baselineIds.forEach(id => {
+          const count = competitorsByBaseline.get(id) || 0;
+          if (count === 0) distribution.zero++;
+          else if (count === 1) distribution.one++;
+          else if (count <= 3) distribution.twoToThree++;
+          else distribution.fourPlus++;
+        });
+
+        // Price position analysis
+        const pricePosition = {
+          muchBelow: 0,
+          competitive: 0,
+          atMarket: 0,
+          aboveMarket: 0,
+          muchAbove: 0,
+          noData: 0,
+        };
+
+        baselines?.forEach(baseline => {
+          const result = results?.find(r => r.baseline_id === baseline.id);
+          if (!result || !result.market_average) {
+            pricePosition.noData++;
+            return;
+          }
+
+          const ratio = (baseline.current_price / result.market_average - 1) * 100;
+          if (ratio <= -20) pricePosition.muchBelow++;
+          else if (ratio <= -5) pricePosition.competitive++;
+          else if (ratio <= 5) pricePosition.atMarket++;
+          else if (ratio <= 20) pricePosition.aboveMarket++;
+          else pricePosition.muchAbove++;
+        });
+
+        // Data quality metrics
+        const allSimilarityScores = competitors?.map(c => c.similarity_score) || [];
+        const avgSimilarity = allSimilarityScores.length > 0
+          ? allSimilarityScores.reduce((a, b) => a + b, 0) / allSimilarityScores.length
+          : 0;
+
+        const warningCount = results?.filter(r => r.has_warning).length || 0;
+
+        // Scraping health
+        const totalFetches = prices?.length || 0;
+        const successfulFetches = prices?.filter(p => p.fetch_status === 'success').length || 0;
+        const failedFetches = prices?.filter(p => p.fetch_status === 'failed').length || 0;
+
+        return new Response(JSON.stringify({
+          uploadMetrics: {
+            totalUploads,
+            withCompetitors: totalUploads - distribution.zero,
+            withoutCompetitors: distribution.zero,
+            avgCompetitorsPerProduct: competitors?.length ? (competitors.length / totalUploads).toFixed(1) : 0,
+          },
+          distribution: {
+            zero: distribution.zero,
+            one: distribution.one,
+            twoToThree: distribution.twoToThree,
+            fourPlus: distribution.fourPlus,
+          },
+          pricePosition,
+          scrapingHealth: {
+            totalFetches,
+            successfulFetches,
+            failedFetches,
+            successRate: totalFetches > 0 ? ((successfulFetches / totalFetches) * 100).toFixed(1) : 0,
+          },
+          dataQuality: {
+            avgSimilarity: avgSimilarity.toFixed(2),
+            totalCompetitors: competitors?.length || 0,
+            productsWithWarnings: warningCount,
+          },
+        }), {
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+
       default:
         return new Response(JSON.stringify({ error: 'Invalid action' }), {
           status: 400,
