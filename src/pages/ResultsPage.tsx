@@ -447,16 +447,63 @@ Position vs Market,${results.position_vs_market ? results.position_vs_market.toF
 
         {/* Competitor Intelligence */}
         {competitors && competitors.length > 0 && (
-          <Card className="p-6 md:p-8 mb-6 shadow-elegant hover:shadow-glow transition-all animate-scale-in">
-            <h2 className="text-2xl font-bold mb-6 flex items-center gap-2 text-foreground">
-              <div className="p-2 bg-accent rounded-lg shadow-md">
-                <span className="text-lg">🛒</span>
+          <>
+            {/* Market Summary */}
+            <Card className="p-6 md:p-8 mb-6 shadow-elegant hover:shadow-glow transition-all animate-scale-in">
+              <h2 className="text-2xl font-bold mb-6 flex items-center gap-2 text-foreground">
+                <div className="p-2 bg-primary rounded-lg shadow-md">
+                  <span className="text-lg">📊</span>
+                </div>
+                Market Summary - All Competitors
+              </h2>
+              
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <div className="p-6 bg-gradient-to-br from-success/10 to-success/5 rounded-xl border-2 border-success/30 hover:border-success/50 transition-all">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-2xl">📉</span>
+                    <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Lowest Price</span>
+                  </div>
+                  <p className="text-4xl font-bold text-success mb-1">
+                    {baseline.currency} {Math.min(...competitors.filter((c: any) => c.fetch_status === 'success' && c.lowest_price).map((c: any) => c.lowest_price)).toFixed(2)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Across all marketplaces</p>
+                </div>
+                
+                <div className="p-6 bg-gradient-to-br from-primary/10 to-primary/5 rounded-xl border-2 border-primary/30 hover:border-primary/50 transition-all">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-2xl">📊</span>
+                    <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Average Price</span>
+                  </div>
+                  <p className="text-4xl font-bold text-primary mb-1">
+                    {baseline.currency} {(competitors.filter((c: any) => c.fetch_status === 'success' && c.average_price).reduce((sum: number, c: any) => sum + c.average_price, 0) / competitors.filter((c: any) => c.fetch_status === 'success' && c.average_price).length).toFixed(2)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Weighted average</p>
+                </div>
+                
+                <div className="p-6 bg-gradient-to-br from-destructive/10 to-destructive/5 rounded-xl border-2 border-destructive/30 hover:border-destructive/50 transition-all">
+                  <div className="flex items-center gap-2 mb-2">
+                    <span className="text-2xl">📈</span>
+                    <span className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Highest Price</span>
+                  </div>
+                  <p className="text-4xl font-bold text-destructive mb-1">
+                    {baseline.currency} {Math.max(...competitors.filter((c: any) => c.fetch_status === 'success' && c.highest_price).map((c: any) => c.highest_price)).toFixed(2)}
+                  </p>
+                  <p className="text-xs text-muted-foreground">Across all marketplaces</p>
+                </div>
               </div>
-              Competitive Intelligence
-            </h2>
-            
-            <div className="space-y-4">
-              {competitors.map((comp: any) => (
+            </Card>
+
+            {/* Detailed Competitor Breakdown */}
+            <Card className="p-6 md:p-8 mb-6 shadow-elegant hover:shadow-glow transition-all animate-scale-in">
+              <h2 className="text-2xl font-bold mb-6 flex items-center gap-2 text-foreground">
+                <div className="p-2 bg-accent rounded-lg shadow-md">
+                  <span className="text-lg">🛒</span>
+                </div>
+                By Marketplace
+              </h2>
+              
+              <div className="space-y-4">
+                {competitors.map((comp: any) => (
                 <div key={comp.id} className="p-5 border-2 rounded-lg bg-gradient-card hover:border-primary/30 transition-all">
                   <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
                     <div className="flex items-center gap-2">
@@ -491,9 +538,10 @@ Position vs Market,${results.position_vs_market ? results.position_vs_market.toF
                     </div>
                   )}
                 </div>
-              ))}
-            </div>
-          </Card>
+                ))}
+              </div>
+            </Card>
+          </>
         )}
 
         {/* Market Positioning */}
