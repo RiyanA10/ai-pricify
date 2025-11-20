@@ -293,9 +293,15 @@ Position vs Market,${results.position_vs_market ? results.position_vs_market.toF
                 <Download className="w-4 h-4" />
                 Download Report
               </Button>
-              <Button onClick={handleRefreshCompetitors} disabled={isRefreshing} variant="outline" size="sm" className="gap-2">
+              <Button 
+                onClick={handleRefreshCompetitors} 
+                disabled={isRefreshing} 
+                variant="ghost" 
+                size="sm" 
+                className="gap-2 text-muted-foreground"
+              >
                 <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
-                Refresh Data
+                Update Now
               </Button>
             </div>
           </div>
@@ -554,13 +560,13 @@ Position vs Market,${results.position_vs_market ? results.position_vs_market.toF
           </Button>
           <Button 
             size="lg" 
-            variant="outline" 
-            className="flex-1 sm:flex-none shadow-md hover:shadow-lg transition-all"
+            variant="ghost" 
+            className="flex-1 sm:flex-none text-muted-foreground"
             onClick={handleRefreshCompetitors}
             disabled={isRefreshing}
           >
             <RefreshCw className={`w-4 h-4 mr-2 ${isRefreshing ? 'animate-spin' : ''}`} />
-            {isRefreshing ? 'Refreshing...' : 'Refresh Data'}
+            {isRefreshing ? 'Updating...' : 'Update Now'}
           </Button>
           <Button 
             size="lg" 

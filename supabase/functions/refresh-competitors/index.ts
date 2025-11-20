@@ -377,6 +377,51 @@ function extractPrice(text: string, expectedCurrency: string): { price: number; 
 }
 
 // ========================================
+// PRODUCT NAME EXTRACTION
+// ========================================
+
+/**
+ * Extract core product identifier (brand + model only)
+ * Examples:
+ *   "Sony WH-1000XM6 The Best Wireless..." → "Sony WH-1000XM6"
+ *   "Apple iPhone 15 Pro Max 256GB Blue" → "Apple iPhone 15 Pro"
+ *   "Samsung Galaxy S24 Ultra Premium Edition" → "Samsung Galaxy S24 Ultra"
+ */
+function extractCoreProductName(fullName: string): string {
+  // Remove content in parentheses/brackets
+  let cleaned = fullName
+    .replace(/\([^)]*\)/g, '')
+    .replace(/\[[^\]]*\]/g, '');
+  
+  // Remove common marketing words
+  const marketingWords = [
+    'the', 'best', 'premium', 'deluxe', 'ultimate', 'professional',
+    'wireless', 'bluetooth', 'noise', 'canceling', 'cancelling',
+    'edition', 'version', 'original', 'authentic', 'genuine',
+    'new', 'latest', 'upgraded', 'advanced', 'enhanced',
+    'black', 'white', 'blue', 'red', 'silver', 'gold'
+  ];
+  
+  const words = cleaned
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(word => {
+      // Keep if:
+      // 1. Not a marketing word
+      // 2. Contains numbers (model numbers)
+      // 3. Length > 1
+      const hasNumbers = /\d/.test(word);
+      const isMarketing = marketingWords.includes(word);
+      return word.length > 1 && (!isMarketing || hasNumbers);
+    });
+  
+  // Take first 2-4 significant words (brand + model)
+  const coreWords = words.slice(0, Math.min(4, words.length));
+  
+  return coreWords.join(' ').trim();
+}
+
+// ========================================
 // SCRAPING FUNCTION
 // ========================================
 
@@ -544,6 +589,11 @@ serve(async (req) => {
     }
 
     console.log('Refreshing competitor prices for:', baseline.product_name);
+    
+    // Extract core product name for better search results
+    const coreProductName = extractCoreProductName(baseline.product_name);
+    console.log(`📦 Original: "${baseline.product_name}"`);
+    console.log(`🎯 Core search: "${coreProductName}"`);
 
     await supabase
       .from('competitor_prices')
@@ -561,12 +611,12 @@ serve(async (req) => {
         const config = MARKETPLACE_CONFIGS[marketplaceKey];
         console.log(`\n=== Scraping ${config.name} ===`);
         
-        const prices = await scrapeMarketplacePrices(
-          config,
-          baseline.product_name,
-          baseline.current_price,
-          baseline.currency
-        );
+      const prices = await scrapeMarketplacePrices(
+        config,
+        coreProductName,  // Use core name instead of full name
+        baseline.current_price,
+        baseline.currency
+      );
         
         if (prices.length > 0) {
           const lowest = Math.min(...prices);

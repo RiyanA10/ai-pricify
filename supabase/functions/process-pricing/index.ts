@@ -95,14 +95,22 @@ serve(async (req) => {
           .update({ current_step: 'fetching_competitors' })
           .eq('baseline_id', baseline_id);
 
-        await fetchCompetitorPrices(
-          supabase, 
-          baseline_id, 
-          baseline.product_name,
-          baseline.currency,
-          baseline.merchant_id,
-          baseline.current_price
+        // Call refresh-competitors function for better scraping
+        console.log('Triggering competitor scraping via refresh-competitors...');
+        
+        const { data: refreshData, error: refreshError } = await supabase.functions.invoke(
+          'refresh-competitors',
+          {
+            body: { baseline_id }
+          }
         );
+
+        if (refreshError) {
+          console.error('Error calling refresh-competitors:', refreshError);
+          // Don't fail the whole process, just log and continue
+        } else {
+          console.log('✅ Competitor scraping completed successfully');
+        }
 
         await supabase.from('processing_status')
           .update({ current_step: 'calculating_price' })
@@ -256,258 +264,7 @@ function extractPrice(text: string, expectedCurrency: string): { price: number; 
   return bestMatch;
 }
 
-function simplifyProductName(productName: string): string {
-  return normalizeProductName(productName)
-    .split(',')[0]
-    .trim();
-}
-
-function extractProductKeywords(productName: string): string[] {
-  const normalized = normalizeProductName(productName);
-  return normalized.split(' ').filter(word => word.length > 2);
-}
-
-async function scrapeMarketplacePrices(
-  url: string, 
-  marketplace: string, 
-  productKeywords: string[], 
-  baselinePrice: number
-): Promise<number[]> {
-  const zenrowsApiKey = Deno.env.get('ZENROWS_API_KEY');
-  
-  if (!zenrowsApiKey) {
-    console.error('ZENROWS_API_KEY not configured');
-    return [];
-  }
-  
-  try {
-    console.log(`Scraping ${marketplace} for: [${productKeywords.join(', ')}]`);
-    
-    const zenrowsUrl = new URL('https://api.zenrows.com/v1/');
-    zenrowsUrl.searchParams.set('url', url);
-    zenrowsUrl.searchParams.set('apikey', zenrowsApiKey);
-    zenrowsUrl.searchParams.set('js_render', 'true');
-    zenrowsUrl.searchParams.set('premium_proxy', 'true');
-    
-    const response = await fetch(zenrowsUrl.toString());
-
-    if (!response.ok) {
-      console.error(`HTTP ${response.status} from ${marketplace}`);
-      return [];
-    }
-
-    const html = await response.text();
-    console.log(`Received ${html.length} chars from ${marketplace}`);
-    
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-    
-    if (!doc) {
-      console.error('Failed to parse HTML');
-      return [];
-    }
-
-    const marketplaceConfig: Record<string, { container: string; title: string; price: string }> = {
-      amazon: {
-        container: 'div[data-component-type="s-search-result"]',
-        title: 'h2 span, h2 a span',
-        price: '.a-price .a-offscreen, span.a-price-whole, .a-price-whole'
-      },
-      walmart: {
-        container: 'div[data-item-id], [data-testid="list-view"]',
-        title: 'span[data-automation-id="product-title"], a[link-identifier]',
-        price: 'span[itemprop="price"], div[data-automation-id="product-price"] span, [data-automation-id="product-price"]'
-      },
-      ebay: {
-        container: 'li.s-item, div.s-item__wrapper',
-        title: 'div.s-item__title, h3.s-item__title',
-        price: 'span.s-item__price, span.POSITIVE, .s-item__price'
-      },
-      target: {
-        container: 'div[data-test="@web/site-top-of-funnel/ProductCardWrapper"]',
-        title: 'a[data-test="product-title"], [data-test="product-title"]',
-        price: 'span[data-test="current-price"], span[data-test="product-price"]'
-      },
-      noon: {
-        container: 'div[data-qa="product-item"], article',
-        title: '[data-qa="product-name"], .productContainer h2',
-        price: '[data-qa="product-price"], strong, .sellingPrice'
-      },
-      extra: {
-        container: 'div.product-item, div.product-card',
-        title: '.product-title, .product-name, h3',
-        price: '.price, .special-price, .final-price'
-      },
-      jarir: {
-        container: 'div.product-card, div.product-item',
-        title: '.product-name, .product-title, h3',
-        price: '.price, .final-price, .sale-price'
-      }
-    };
-
-    const config = marketplaceConfig[marketplace];
-    
-    if (!config) {
-      console.log(`No config for ${marketplace}`);
-      return [];
-    }
-
-    const validPrices: number[] = [];
-    const containers = doc.querySelectorAll(config.container);
-    
-    console.log(`Found ${containers.length} containers`);
-
-    const minPrice = baselinePrice * 0.3;
-    const maxPrice = baselinePrice * 3;
-    const SIMILARITY_THRESHOLD = 0.5; // Lowered to capture iPhone 15/12 as matches for iPhone 17
-    
-    const simplifiedName = simplifyProductName(productKeywords.join(' '));
-
-    containers.forEach((container: any, idx: number) => {
-      try {
-        let titleEl: any = null;
-        for (const sel of config.title.split(',')) {
-          titleEl = container.querySelector(sel.trim());
-          if (titleEl) break;
-        }
-        
-        let priceEl: any = null;
-        for (const sel of config.price.split(',')) {
-          priceEl = container.querySelector(sel.trim());
-          if (priceEl) break;
-        }
-        
-        if (!titleEl || !priceEl) {
-          if (idx < 5) console.log(`[${idx}] ✗ Missing`);
-          return;
-        }
-        
-        const title = titleEl.textContent?.trim() || '';
-        const priceText = priceEl.textContent?.trim() || '';
-        
-        if (!title || !priceText) return;
-        
-        if (idx < 5) console.log(`[${idx}] "${title.substring(0, 60)}..." | "${priceText}"`);
-        
-        const similarity = calculateSimilarity(simplifiedName, title);
-        
-        if (similarity < SIMILARITY_THRESHOLD) {
-          if (idx < 5) console.log(`[${idx}] ✗ Similarity: ${(similarity * 100).toFixed(0)}%`);
-          return;
-        }
-        
-        const currency = baselinePrice > 100 ? 'SAR' : 'USD';
-        const extracted = extractPrice(priceText, currency);
-        
-        if (!extracted) return;
-        
-        const { price, confidence } = extracted;
-        
-        if (price >= minPrice && price <= maxPrice && confidence > 0.4) { // Lowered confidence threshold
-          validPrices.push(price);
-          if (idx < 5) console.log(`[${idx}] ✓ ${price} (${(similarity * 100).toFixed(0)}% match, ${(confidence * 100).toFixed(0)}% conf)`);
-        } else if (idx < 5) {
-          console.log(`[${idx}] ✗ Rejected: price=${price}, conf=${(confidence * 100).toFixed(0)}%`);
-        }
-      } catch (err) {
-        if (idx < 5) console.log(`[${idx}] Error:`, err);
-      }
-    });
-
-    console.log(`Extracted ${validPrices.length} validated prices`);
-    return validPrices.slice(0, 20);
-    
-  } catch (error) {
-    console.error(`Error scraping ${marketplace}:`, error);
-    return [];
-  }
-}
-
-async function fetchCompetitorPrices(
-  supabase: any,
-  baseline_id: string,
-  product_name: string,
-  currency: string,
-  merchant_id: string,
-  baseline_price: number
-) {
-  console.log('Fetching competitor prices...');
-  
-  const simplifiedName = simplifyProductName(product_name);
-  const keywords = extractProductKeywords(product_name);
-  console.log(`Product: "${product_name}"`);
-  console.log(`Simplified: "${simplifiedName}"`);
-  console.log(`Keywords: [${keywords.join(', ')}]`);
-  console.log(`Price range: $${(baseline_price * 0.3).toFixed(2)} - $${(baseline_price * 3).toFixed(2)}`);
-  
-  await supabase
-    .from('competitor_prices')
-    .delete()
-    .eq('baseline_id', baseline_id);
-  
-  const marketplaces = currency === 'SAR' 
-    ? [
-        { name: 'amazon', search: 'https://www.amazon.sa/s?k=' },
-        { name: 'noon', search: 'https://www.noon.com/saudi-en/search?q=' },
-        { name: 'extra', search: 'https://www.extra.com/en-sa/search?q=' },
-        { name: 'jarir', search: 'https://www.jarir.com/search/?q=' }
-      ]
-    : [
-        { name: 'amazon', search: 'https://www.amazon.com/s?k=' },
-        { name: 'walmart', search: 'https://www.walmart.com/search?q=' },
-        { name: 'ebay', search: 'https://www.ebay.com/sch/i.html?_nkw=' },
-        { name: 'target', search: 'https://www.target.com/s?searchTerm=' }
-      ];
-
-  for (const marketplace of marketplaces) {
-    try {
-      console.log(`\n=== Scraping ${marketplace.name} ===`);
-      
-      const searchUrl = `${marketplace.search}${encodeURIComponent(simplifiedName)}`;
-      const prices = await scrapeMarketplacePrices(searchUrl, marketplace.name, keywords, baseline_price);
-
-      if (prices.length > 0) {
-        const lowest = Math.min(...prices);
-        const highest = Math.max(...prices);
-        const average = prices.reduce((a, b) => a + b, 0) / prices.length;
-
-        await supabase.from('competitor_prices').insert({
-          baseline_id,
-          merchant_id,
-          marketplace: marketplace.name,
-          lowest_price: lowest,
-          average_price: average,
-          highest_price: highest,
-          currency,
-          products_found: prices.length,
-          fetch_status: 'success'
-        });
-
-        console.log(`✓ Saved ${prices.length} prices: $${lowest.toFixed(2)} - $${highest.toFixed(2)} (avg: $${average.toFixed(2)})`);
-      } else {
-        await supabase.from('competitor_prices').insert({
-          baseline_id,
-          merchant_id,
-          marketplace: marketplace.name,
-          currency,
-          fetch_status: 'no_data'
-        });
-        
-        console.log(`✗ No matching products found`);
-      }
-    } catch (error) {
-      console.error(`Error fetching from ${marketplace.name}:`, error);
-      
-      await supabase.from('competitor_prices').insert({
-        baseline_id,
-        merchant_id,
-        marketplace: marketplace.name,
-        currency,
-        fetch_status: 'failed'
-      });
-    }
-  }
-}
+// Old scraping functions removed - now using refresh-competitors edge function
 
 async function calculateOptimalPrice(
   supabase: any,

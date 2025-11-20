@@ -191,10 +191,11 @@ export default function ProcessingPage() {
           <div className="flex items-center gap-4 p-5 rounded-xl bg-gradient-card border border-primary/10 hover:border-primary/30 transition-all">
             {getStatusIcon(status.competitors)}
             <div className="flex-1">
-              <p className="font-semibold text-lg">Searching competitor prices</p>
+              <p className="font-semibold text-lg">Auto-Searching Competitor Prices</p>
               <p className="text-sm text-muted-foreground mb-2">
-                🛒 Scanning major marketplaces...
+                🛒 Automatically scanning major marketplaces...
               </p>
+              <p className="text-xs text-gray-500">✨ No manual refresh needed!</p>
               {status.competitors !== 'pending' && (
                 <div className="space-y-1 ml-4">
                   <div className="flex items-center gap-2 text-xs">
