@@ -181,13 +181,46 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
       ]
     }
   },
+  'amazon-us': {
+    name: 'Amazon.com',
+    searchUrl: 'https://www.amazon.com/s?k=',
+    scrapingBeeOptions: {
+      renderJs: true,
+      wait: 6000,
+      blockResources: false,
+      blockAds: true,
+      countryCode: 'us'
+    },
+    selectors: {
+      containers: [
+        '[data-component-type="s-search-result"]',
+        '.s-result-item[data-asin]:not([data-asin=""])',
+        'div[data-asin]:not([data-asin=""])',
+        '.s-search-results .s-result-item'
+      ],
+      productName: [
+        'h2 a span',
+        'h2.a-size-mini span',
+        '.a-size-medium.a-text-normal',
+        'h2 span.a-text-normal',
+        '[data-cy="title-recipe"] h2 span'
+      ],
+      price: [
+        '.a-price-whole',
+        'span.a-price > span.a-offscreen',
+        '.a-price .a-price-whole',
+        'span[data-a-color="price"]',
+        '.a-price-range .a-price .a-offscreen'
+      ]
+    }
+  },
   'walmart': {
     name: 'Walmart',
     searchUrl: 'https://www.walmart.com/search?q=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 3000,
-      blockResources: true,
+      wait: 6000,
+      blockResources: false,
       blockAds: true,
       countryCode: 'us'
     },
@@ -195,16 +228,21 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
       containers: [
         'div[data-item-id]',
         '[data-testid="list-view"]',
-        'div[class*="search-result"]'
+        'div[class*="search-result"]',
+        '[data-testid="item-stack"]',
+        'div[class*="mb0 ph1 pa0-xl"]',
+        'article[class*="search"]'
       ],
       productName: [
         'span[data-automation-id="product-title"]',
-        'a[link-identifier]'
+        'a[link-identifier]',
+        'span[data-automation-id="product-name"]'
       ],
       price: [
         'span[itemprop="price"]',
         'div[data-automation-id="product-price"] span',
-        '[data-automation-id="product-price"]'
+        '[data-automation-id="product-price"]',
+        'span[class*="price"]'
       ]
     }
   },
@@ -213,24 +251,29 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.ebay.com/sch/i.html?_nkw=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 3000,
-      blockResources: true,
+      wait: 6000,
+      blockResources: false,
       blockAds: true,
       countryCode: 'us'
     },
     selectors: {
       containers: [
         'li.s-item',
-        'div.s-item__wrapper'
+        'div.s-item__wrapper',
+        'div.srp-results li',
+        'li[data-view]',
+        'div.s-item'
       ],
       productName: [
         'div.s-item__title',
-        'h3.s-item__title'
+        'h3.s-item__title',
+        '.s-item__title span'
       ],
       price: [
         'span.s-item__price',
         'span.POSITIVE',
-        '.s-item__price'
+        '.s-item__price',
+        'span[class*="price"]'
       ]
     }
   },
@@ -239,22 +282,29 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.target.com/s?searchTerm=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 3000,
-      blockResources: true,
+      wait: 6000,
+      blockResources: false,
       blockAds: true,
       countryCode: 'us'
     },
     selectors: {
       containers: [
-        'div[data-test="@web/site-top-of-funnel/ProductCardWrapper"]'
+        'div[data-test="@web/site-top-of-funnel/ProductCardWrapper"]',
+        'div[data-test="product-card"]',
+        'article[class*="styles__StyledProductCard"]',
+        'div[class*="ProductCard"]'
       ],
       productName: [
         'a[data-test="product-title"]',
-        '[data-test="product-title"]'
+        '[data-test="product-title"]',
+        'div[data-test="product-title"] a',
+        'h3 a',
+        'a[class*="Link__StyledLink"]'
       ],
       price: [
         'span[data-test="current-price"]',
-        'span[data-test="product-price"]'
+        'span[data-test="product-price"]',
+        '[data-test="product-price"] span'
       ]
     }
   }
@@ -477,26 +527,43 @@ async function scrapeMarketplacePrices(
   console.log(`   URL: ${searchUrl}`);
   console.log(`   Config:`, config.scrapingBeeOptions);
   
-  try {
-    const sbUrl = new URL('https://app.scrapingbee.com/api/v1/');
-    sbUrl.searchParams.set('api_key', scrapingbeeApiKey);
-    sbUrl.searchParams.set('url', searchUrl);
-    sbUrl.searchParams.set('render_js', String(config.scrapingBeeOptions.renderJs));
-    sbUrl.searchParams.set('wait', String(config.scrapingBeeOptions.wait));
-    sbUrl.searchParams.set('block_resources', String(config.scrapingBeeOptions.blockResources));
-    sbUrl.searchParams.set('block_ads', String(config.scrapingBeeOptions.blockAds));
-    sbUrl.searchParams.set('country_code', config.scrapingBeeOptions.countryCode);
-    sbUrl.searchParams.set('premium_proxy', 'true');
-    sbUrl.searchParams.set('wait_browser', 'load');
-    
-    const response = await fetch(sbUrl.toString());
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error(`❌ HTTP ${response.status}: ${errorText}`);
-      return [];
-    }
-    
-    const html = await response.text();
+  let retries = 2;
+  let lastError: any = null;
+  
+  while (retries >= 0) {
+    try {
+      const sbUrl = new URL('https://app.scrapingbee.com/api/v1/');
+      sbUrl.searchParams.set('api_key', scrapingbeeApiKey);
+      sbUrl.searchParams.set('url', searchUrl);
+      sbUrl.searchParams.set('render_js', String(config.scrapingBeeOptions.renderJs));
+      sbUrl.searchParams.set('wait', String(config.scrapingBeeOptions.wait));
+      sbUrl.searchParams.set('block_resources', String(config.scrapingBeeOptions.blockResources));
+      sbUrl.searchParams.set('block_ads', String(config.scrapingBeeOptions.blockAds));
+      sbUrl.searchParams.set('country_code', config.scrapingBeeOptions.countryCode);
+      sbUrl.searchParams.set('premium_proxy', 'true');
+      sbUrl.searchParams.set('wait_browser', 'load');
+      
+      const response = await fetch(sbUrl.toString());
+      
+      if (response.status === 500) {
+        console.log(`⚠️ Got HTTP 500, retries left: ${retries}`);
+        if (retries > 0) {
+          retries--;
+          await new Promise(r => setTimeout(r, 2000));
+          continue;
+        }
+        const errorText = await response.text();
+        console.error(`❌ HTTP 500 after retries: ${errorText}`);
+        return [];
+      }
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error(`❌ HTTP ${response.status}: ${errorText}`);
+        return [];
+      }
+      
+      const html = await response.text();
     console.log(`✅ Received ${html.length} chars`);
     
     const parser = new DOMParser();
@@ -562,16 +629,29 @@ async function scrapeMarketplacePrices(
     }
     
     console.log(`   Extracted ${products.length} products`);
+    if (products.length === 0) {
+      console.log(`   Debug: Found ${containers.length} containers but extracted 0 products`);
+    }
     
     // Sort by similarity DESC, keep top 20
     return products
       .sort((a, b) => b.similarity - a.similarity)
       .slice(0, 20);
     
-  } catch (error: any) {
-    console.error(`❌ Error:`, error.message);
-    return [];
+    } catch (error: any) {
+      lastError = error;
+      if (retries > 0) {
+        console.log(`⚠️ Error, retrying... (${retries} left)`);
+        retries--;
+        await new Promise(r => setTimeout(r, 2000));
+        continue;
+      }
+      console.error(`❌ Error after retries:`, error.message);
+      return [];
+    }
   }
+  
+  return [];
 }
 
 // ========================================
@@ -667,7 +747,7 @@ serve(async (req) => {
 
     const marketplaceKeys = baseline.currency === 'SAR' 
       ? ['amazon', 'noon', 'extra', 'jarir']
-      : ['amazon', 'walmart', 'ebay', 'target'];
+      : ['amazon-us', 'walmart', 'ebay', 'target'];
 
     const results = [];
 
