@@ -49,30 +49,10 @@ const AuthPage = () => {
           variant: 'destructive',
         });
       } else if (data.user) {
-        // Send verification email
-        const { error: functionError } = await supabase.functions.invoke('send-verification', {
-          body: {
-            email,
-            business_name: businessName,
-            is_resend: false
-          }
+        toast({
+          title: 'Account Created!',
+          description: 'You can now sign in with your credentials.',
         });
-
-        if (functionError) {
-          console.error('Verification email error:', functionError);
-          toast({
-            title: 'Warning',
-            description: 'Account created but verification email failed to send. Please contact support.',
-            variant: 'destructive',
-          });
-        } else {
-          toast({
-            title: 'Check Your Email',
-            description: 'We sent you a verification code. Please check your inbox.',
-          });
-          navigate(`/verify?email=${encodeURIComponent(email)}&business=${encodeURIComponent(businessName)}`);
-        }
-        
         setEmail('');
         setPassword('');
         setBusinessName('');

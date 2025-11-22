@@ -11,7 +11,6 @@ import { CompetitiveIntelligencePage } from "./pages/CompetitiveIntelligencePage
 import DebugZenrowsPage from "./pages/DebugZenrowsPage";
 import NotFound from "./pages/NotFound";
 import AuthPage from "./pages/AuthPage";
-import VerificationPage from "./pages/VerificationPage";
 import AdminPage from "./pages/AdminPage";
 import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
@@ -26,7 +25,6 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/auth" element={<AuthPage />} />
-          <Route path="/verify" element={<VerificationPage />} />
           <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
           <Route path="/products" element={<ProtectedRoute><ProductListPage /></ProtectedRoute>} />
           <Route path="/competitive-intelligence" element={<ProtectedRoute><CompetitiveIntelligencePage /></ProtectedRoute>} />

@@ -6,8 +6,4 @@ project_id = "vysewjocqjndkagngeum"
 
 [functions.debug-zenrows]
 
-[functions.send-verification]
-
-[functions.verify-email]
-
 [functions.admin]
