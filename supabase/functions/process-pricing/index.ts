@@ -53,7 +53,7 @@ serve(async (req) => {
 
     const { baseline_id } = validation.data;
 
-    console.log('Starting pricing processing for baseline:', baseline_id);
+    console.log('Starting pricing processing request');
 
     const { data: baseline, error: baselineError } = await supabase
       .from('product_baselines')
@@ -84,7 +84,7 @@ serve(async (req) => {
     const backgroundTask = (async () => {
       try {
         const { rate: inflationRate, source: inflationSource } = await fetchInflationRate(baseline.currency);
-        console.log(`Fetched inflation rate for ${baseline.currency}:`, inflationRate, 'from', inflationSource);
+        console.log('Fetched inflation rate:', inflationRate);
         
         await supabase.from('inflation_snapshots').insert({
           inflation_rate: inflationRate,
@@ -143,9 +143,9 @@ serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error('Error in process-pricing function:', error);
+    console.error('[Internal] Process-pricing error:', error);
     return new Response(
-      JSON.stringify({ error: error?.message || 'Unknown error' }),
+      JSON.stringify({ error: 'Failed to process pricing request' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
@@ -325,7 +325,7 @@ async function calculateOptimalPrice(
 
   const positionVsMarket = ((suggestedPrice - marketStats.average) / marketStats.average) * 100;
 
-  console.log(`Calculated optimal price: ${optimalPrice} Suggested: ${suggestedPrice}`);
+  console.log('Price calculation complete');
 
   await supabase.from('pricing_results').insert({
     baseline_id: baseline.id,

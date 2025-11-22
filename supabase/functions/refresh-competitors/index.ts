@@ -643,9 +643,7 @@ async function scrapeMarketplacePrices(
       });
       
       if (i < 5) {
-        console.log(`   [${i}] "${name.slice(0, 50)}..."`);
-        console.log(`       Raw: ${(similarity * 100).toFixed(0)}% → Adjusted: ${(adjustedSimilarity * 100).toFixed(0)}%`);
-        console.log(`       Price: ${extracted.price} ${currency} (${priceRatio.toFixed(2)}x baseline)`);
+        console.log(`   [${i}] Match: ${(adjustedSimilarity * 100).toFixed(0)}%, Ratio: ${priceRatio.toFixed(2)}x`);
       }
     }
     
@@ -743,17 +741,16 @@ serve(async (req) => {
       });
     }
 
-    console.log('Refreshing competitor prices for:', baseline.product_name);
+    console.log('Refreshing competitor prices');
     
     // Check if baseline product is an accessory
     const baselineIsAccessory = isAccessoryOrReplacement(baseline.product_name);
-    console.log(`\n🔍 Baseline "${baseline.product_name}" is ${baselineIsAccessory ? 'AN ACCESSORY' : 'A MAIN PRODUCT'}`);
-    console.log(`   Filter mode: ${baselineIsAccessory ? 'Keep all accessories' : 'Filter OUT accessories'}`);
+    console.log(`Baseline is ${baselineIsAccessory ? 'accessory' : 'main product'}`);
+    console.log(`Filter mode: ${baselineIsAccessory ? 'Keep accessories' : 'Filter accessories'}`);
     
     // Extract core product name for better search results
     const coreProductName = extractCoreProductName(baseline.product_name);
-    console.log(`📦 Original: "${baseline.product_name}"`);
-    console.log(`🎯 Core search: "${coreProductName}"`);
+    console.log('Using', coreProductName === baseline.product_name ? 'full name' : 'core product name');
 
     // Delete existing data for this baseline
     await supabase
@@ -896,9 +893,9 @@ serve(async (req) => {
     );
 
   } catch (error: any) {
-    console.error('Error:', error);
+    console.error('[Internal] Refresh-competitors error:', error);
     return new Response(
-      JSON.stringify({ error: error?.message || 'Unknown error' }),
+      JSON.stringify({ error: 'Failed to refresh competitor prices' }),
       { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );
   }
