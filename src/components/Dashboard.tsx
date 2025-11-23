@@ -162,7 +162,7 @@ const Dashboard = ({ onNavigateToUpload }: DashboardProps) => {
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 bg-gradient-primary rounded-xl flex items-center justify-center shadow-glow">
-                <span className="text-xl font-bold text-white">AT</span>
+                <span className="text-xl font-bold text-primary-foreground">AT</span>
               </div>
               <div>
                 <h1 className="text-2xl font-bold text-primary">AI TRUEST™</h1>
