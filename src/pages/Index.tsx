@@ -24,8 +24,8 @@ const Index = () => {
           <header className="border-b bg-card sticky top-0 z-50 shadow-sm">
             <div className="container mx-auto px-4 py-4 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <div className="w-12 h-12 bg-gradient-primary rounded-xl flex items-center justify-center shadow-glow bg-indigo-600">
-                  <span className="text-xl font-bold text-white">AT</span>
+                <div className="w-12 h-12 bg-gradient-primary rounded-xl flex items-center justify-center shadow-glow">
+                  <span className="text-xl font-bold text-primary-foreground">AT</span>
                 </div>
                 <h1 className="text-2xl font-bold text-primary">AI TRUEST™</h1>
               </div>
