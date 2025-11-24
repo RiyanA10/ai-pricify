@@ -359,41 +359,56 @@ function calculateProfitMaximizingPrice(
   marketAdjusted: number;
   reasoning: string;
 } {
-  // Revenue-maximizing price from elasticity theory
-  // Formula: P* = Cost / (1 + 1/elasticity)
-  const theoreticalOptimal = cost / (1 + 1 / elasticity);
-  
-  console.log(`💡 Theoretical optimal price: ${theoreticalOptimal.toFixed(2)}`);
-  console.log(`   Based on elasticity ${elasticity} and cost ${cost}`);
-  
   // Apply inflation adjustment to market boundaries FIRST
   const inflationMultiplier = 1 + inflationRate;
+  const inflationAdjustedAverage = marketAverage * inflationMultiplier;
   const inflationAdjustedHighest = marketHighest * inflationMultiplier;
+  const inflationAdjustedLowest = marketLowest * inflationMultiplier;
   
-  // Safety bounds (with inflation considered)
+  // Revenue-maximizing price from elasticity theory
+  // Formula: P* = Cost / (1 + 1/elasticity)
+  // BUT: This can produce unrealistic prices, so we cap it at market reality
+  const rawTheoretical = cost / (1 + 1 / elasticity);
+  
+  // Cap theoretical at 2x market highest (prevent absurd prices)
+  const theoreticalOptimal = Math.min(rawTheoretical, inflationAdjustedHighest * 2);
+  
+  console.log(`💡 Theoretical optimal (capped): ${theoreticalOptimal.toFixed(2)}`);
+  console.log(`   Based on elasticity ${elasticity} and cost ${cost}`);
+  console.log(`   Market average (inflation-adjusted): ${inflationAdjustedAverage.toFixed(2)}`);
+  console.log(`   Market highest (inflation-adjusted): ${inflationAdjustedHighest.toFixed(2)}`);
+  
+  // CRITICAL FIX: Use market-driven approach, not theory-driven
+  // Start with inflation-adjusted market average as base
+  let marketAdjusted = inflationAdjustedAverage;
+  
+  // Apply elasticity insight: if theoretical suggests lower markup, adjust down slightly
+  if (theoreticalOptimal < inflationAdjustedAverage && theoreticalOptimal > cost * 1.1) {
+    // Move 30% toward theoretical if it's reasonable
+    marketAdjusted = (inflationAdjustedAverage * 0.7) + (theoreticalOptimal * 0.3);
+  }
+  
+  // Safety bounds
   const minPrice = cost * 1.10; // Minimum 10% markup
-  const maxPrice = inflationAdjustedHighest * 1.15; // Max 15% above inflation-adjusted market highest
-  
-  // Blend theoretical with market intelligence (60% theory, 40% market)
-  let marketAdjusted = (theoreticalOptimal * 0.6) + (marketAverage * inflationMultiplier * 0.4);
+  const maxPrice = inflationAdjustedHighest * 0.98; // STAY BELOW market highest (2% discount max)
   
   let reasoning = '';
   
   // Apply bounds and reasoning
   if (marketAdjusted < minPrice) {
     marketAdjusted = minPrice;
-    reasoning = `Adjusted to minimum 10% markup for profitability`;
+    reasoning = `Set to minimum 10% markup (${minPrice.toFixed(0)}) for profitability`;
   } else if (marketAdjusted > maxPrice) {
     marketAdjusted = maxPrice;
-    reasoning = `Capped at 15% above inflation-adjusted market highest (${inflationAdjustedHighest.toFixed(0)}) to remain competitive`;
-  } else if (marketLowest > 0 && marketAdjusted < marketLowest * 0.9) {
-    marketAdjusted = marketLowest * 0.95;
-    reasoning = `Positioned 5% below market lowest for competitive edge`;
+    reasoning = `Capped at market highest (${inflationAdjustedHighest.toFixed(0)}) to stay competitive`;
+  } else if (marketAdjusted < inflationAdjustedLowest && inflationAdjustedLowest > cost * 1.1) {
+    marketAdjusted = inflationAdjustedLowest * 0.95;
+    reasoning = `Positioned 5% below market lowest (${inflationAdjustedLowest.toFixed(0)}) for competitive advantage`;
   } else {
-    reasoning = `Balanced between profit optimization and market positioning`;
+    reasoning = `Optimized based on inflation-adjusted market average (${inflationAdjustedAverage.toFixed(0)})`;
   }
   
-  console.log(`🎯 Final price (inflation-adjusted): ${marketAdjusted.toFixed(2)}`);
+  console.log(`🎯 Final suggested price: ${marketAdjusted.toFixed(2)}`);
   console.log(`   Reasoning: ${reasoning}`);
   
   return {
