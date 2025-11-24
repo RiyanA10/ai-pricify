@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { ArrowLeft, TrendingUp, TrendingDown, RefreshCw, Download, ChevronLeft, ChevronRight } from 'lucide-react';
+import { ArrowLeft, TrendingUp, TrendingDown, RefreshCw, Download, ChevronLeft, ChevronRight, Info } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
@@ -317,16 +317,22 @@ Position vs Market,${results.position_vs_market ? results.position_vs_market.toF
               </div>
               
               <div className="flex justify-between items-center pb-3 border-b">
-                <span className="text-sm font-medium text-muted-foreground">Optimal Price:</span>
-                <span className="text-xl font-bold text-primary">
-                  {formatPrice(results.optimal_price, baseline.currency)} ⭐
+                <span className="text-sm font-medium text-muted-foreground">
+                  Suggested Price:
+                  <span className="ml-1 text-xs">(Recommended)</span>
+                </span>
+                <span className="text-2xl font-bold text-primary">
+                  ⭐ {formatPrice(results.suggested_price, baseline.currency)}
                 </span>
               </div>
               
               <div className="flex justify-between items-center pb-3 border-b">
-                <span className="text-sm font-medium text-muted-foreground">Suggested Price:</span>
-                <span className="text-xl font-bold text-foreground">
-                  {formatPrice(results.suggested_price, baseline.currency)}
+                <span className="text-sm font-medium text-muted-foreground">
+                  Theoretical Optimal:
+                  <span className="ml-1 text-xs">(Max profit, no market constraints)</span>
+                </span>
+                <span className="text-lg font-semibold text-muted-foreground">
+                  {formatPrice(results.optimal_price, baseline.currency)}
                 </span>
               </div>
               
@@ -371,6 +377,32 @@ Position vs Market,${results.position_vs_market ? results.position_vs_market.toF
               </div>
             </div>
           </div>
+
+          {/* Explanation Card */}
+          <Card className="bg-muted/30 border-primary/20 mt-6">
+            <CardContent className="pt-6">
+              <div className="flex items-start gap-3">
+                <Info className="w-5 h-5 text-primary mt-0.5 flex-shrink-0" />
+                <div className="space-y-2 text-sm">
+                  <p className="font-semibold text-foreground">Understanding the Prices:</p>
+                  <ul className="space-y-1.5 text-muted-foreground">
+                    <li className="flex items-start gap-2">
+                      <span className="text-primary font-bold mt-0.5">⭐</span>
+                      <span><strong>Suggested Price:</strong> Our recommended price that balances profit maximization with market competitiveness. This is the price you should use.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-muted-foreground mt-0.5">•</span>
+                      <span><strong>Theoretical Optimal:</strong> Pure profit-maximizing price from elasticity formula, without considering competitor prices or market reality.</span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-muted-foreground mt-0.5">•</span>
+                      <span><strong>Current Price:</strong> Your existing price for comparison purposes.</span>
+                    </li>
+                  </ul>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
 
           {/* Warning if present */}
           {results.has_warning && (
