@@ -316,17 +316,17 @@ Position vs Market,${results.position_vs_market ? results.position_vs_market.toF
                 </span>
               </div>
               
-              <div className="flex justify-between items-center pb-3 border-b">
-                <span className="text-sm font-medium text-muted-foreground">
-                  Suggested Price:
-                  <span className="ml-1 text-xs">(Recommended)</span>
-                </span>
+              <div className="flex justify-between items-center pb-4 border-b-2 border-primary">
                 <div className="flex items-center gap-2">
                   <span className="text-xl">⭐</span>
-                  <span className="text-2xl font-bold text-primary">
-                    {formatPrice(results.suggested_price, baseline.currency)}
+                  <span className="text-sm font-medium text-muted-foreground">
+                    Suggested Price
+                    <span className="ml-1 text-xs">(Recommended)</span>
                   </span>
                 </div>
+                <span className="text-2xl font-bold text-primary">
+                  {formatPrice(results.suggested_price, baseline.currency)}
+                </span>
               </div>
               
               <div className="flex justify-between items-center pb-3 border-b">
