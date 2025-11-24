@@ -361,6 +361,50 @@ function extractKeyTerms(name: string): string[] {
   return terms;
 }
 
+// Calculate Levenshtein distance between two strings for fuzzy matching
+function levenshteinDistance(a: string, b: string): number {
+  const matrix: number[][] = [];
+  
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i];
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j;
+  }
+  
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b.charAt(i - 1) === a.charAt(j - 1)) {
+        matrix[i][j] = matrix[i - 1][j - 1];
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i - 1][j - 1] + 1, // substitution
+          matrix[i][j - 1] + 1,     // insertion
+          matrix[i - 1][j] + 1      // deletion
+        );
+      }
+    }
+  }
+  
+  return matrix[b.length][a.length];
+}
+
+// Check if two terms are similar using fuzzy matching
+function areTermsSimilar(term1: string, term2: string): boolean {
+  if (term1 === term2) return true; // Exact match
+  
+  const minLength = Math.min(term1.length, term2.length);
+  const maxLength = Math.max(term1.length, term2.length);
+  
+  // Short terms (< 4 chars) require exact match
+  if (minLength < 4) return term1 === term2;
+  
+  const distance = levenshteinDistance(term1, term2);
+  const threshold = Math.max(1, Math.floor(maxLength * 0.25)); // Allow 25% difference
+  
+  return distance <= threshold;
+}
+
 function calculateSimilarity(baselineProduct: string, competitorProduct: string): number {
   const baselineTerms = extractKeyTerms(baselineProduct);
   const competitorTerms = extractKeyTerms(competitorProduct);
@@ -369,14 +413,24 @@ function calculateSimilarity(baselineProduct: string, competitorProduct: string)
   
   const matches = new Set<string>();
   let hasModelMatch = false;
+  let fuzzyMatchCount = 0;
   
+  // Check both exact and fuzzy matches
   for (const baselineTerm of baselineTerms) {
     for (const competitorTerm of competitorTerms) {
-      if (baselineTerm === competitorTerm) {
+      if (areTermsSimilar(baselineTerm, competitorTerm)) {
         matches.add(baselineTerm);
+        
+        // Check if it's a model number (contains both letters and digits)
         if (/\d/.test(baselineTerm) && /[a-z]/i.test(baselineTerm)) {
           hasModelMatch = true;
         }
+        
+        // Track if this was a fuzzy match
+        if (baselineTerm !== competitorTerm) {
+          fuzzyMatchCount++;
+        }
+        break; // Found a match, move to next baseline term
       }
     }
   }
@@ -384,15 +438,20 @@ function calculateSimilarity(baselineProduct: string, competitorProduct: string)
   const matchCount = matches.size;
   let similarity = matchCount / baselineTerms.length;
   
-  if (matchCount === baselineTerms.length) {
+  // Bonus for perfect matches
+  if (matchCount === baselineTerms.length && fuzzyMatchCount === 0) {
     similarity = 0.95;
   }
   
+  // Bonus for model number match
   if (hasModelMatch) {
-    similarity = Math.min(similarity * 1.05, 1.0);
+    similarity = Math.min(similarity * 1.1, 1.0);
   }
   
-  return similarity;
+  // Slight penalty for fuzzy matches (0-0.1 reduction)
+  similarity = similarity * (1 - (fuzzyMatchCount * 0.05));
+  
+  return Math.max(0, similarity);
 }
 
 function extractPrice(text: string, expectedCurrency: string): { price: number; confidence: number } | null {
@@ -643,7 +702,8 @@ async function scrapeMarketplacePrices(
       });
       
       if (i < 5) {
-        console.log(`   [${i}] Match: ${(adjustedSimilarity * 100).toFixed(0)}%, Ratio: ${priceRatio.toFixed(2)}x`);
+        console.log(`   [${i}] "${name.substring(0, 50)}..."`);
+        console.log(`       Similarity: ${(adjustedSimilarity * 100).toFixed(0)}%, Price: ${extracted.price}, Ratio: ${priceRatio.toFixed(2)}x`);
       }
     }
     

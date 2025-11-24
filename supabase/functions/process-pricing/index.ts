@@ -154,6 +154,65 @@ async function fetchInflationRate(currency: string): Promise<{ rate: number; sou
   return { rate: 0.025, source: 'IMF Global Estimate' };
 }
 
+/**
+ * Validate market data quality before using it
+ * Returns: { isValid: boolean, reason: string, shouldProceed: boolean }
+ */
+function validateMarketData(
+  marketStats: { lowest: number; average: number; highest: number },
+  baselinePrice: number,
+  productCount: number
+): { isValid: boolean; reason: string; shouldProceed: boolean } {
+  
+  // Check 1: Minimum data points
+  if (productCount < 3) {
+    return {
+      isValid: false,
+      reason: `Insufficient competitor data (only ${productCount} products found)`,
+      shouldProceed: false
+    };
+  }
+  
+  // Check 2: Market spread validation
+  const marketSpread = (marketStats.highest - marketStats.lowest) / marketStats.average;
+  
+  if (marketSpread > 5) {
+    // 500%+ spread indicates contaminated data
+    return {
+      isValid: false,
+      reason: `Market data quality issue: price spread ${(marketSpread * 100).toFixed(0)}% (extreme outliers detected). Please refresh competitor data.`,
+      shouldProceed: false
+    };
+  }
+  
+  // Check 3: Lowest price sanity check
+  const lowestRatio = marketStats.lowest / baselinePrice;
+  if (lowestRatio < 0.2) {
+    // Lowest competitor is < 20% of baseline = likely wrong product
+    return {
+      isValid: false,
+      reason: `Market lowest price (${marketStats.lowest.toFixed(0)}) is suspiciously low compared to baseline (${baselinePrice.toFixed(0)}). Competitor data may include unrelated products.`,
+      shouldProceed: false
+    };
+  }
+  
+  // Check 4: Average price reasonableness
+  const avgRatio = marketStats.average / baselinePrice;
+  if (avgRatio < 0.3 || avgRatio > 3.0) {
+    return {
+      isValid: false,
+      reason: `Market average (${marketStats.average.toFixed(0)}) differs too much from baseline (${baselinePrice.toFixed(0)}). Data quality issues detected.`,
+      shouldProceed: false
+    };
+  }
+  
+  return {
+    isValid: true,
+    reason: 'Market data passed validation checks',
+    shouldProceed: true
+  };
+}
+
 // Statistical outlier removal using IQR method
 function removeOutliers(prices: number[]): { cleaned: number[]; removed: number } {
   if (prices.length < 4) return { cleaned: prices, removed: 0 };
@@ -190,6 +249,7 @@ function calculateWeightedMarketStats(
   highest: number; 
   confidence: string;
   outliersRemoved: number;
+  productsUsed: number;
 } {
   if (!products || products.length === 0) {
     // Fallback to aggregate data
@@ -202,7 +262,7 @@ function calculateWeightedMarketStats(
     });
     
     if (allPrices.length === 0) {
-      return { lowest: 0, average: 0, highest: 0, confidence: 'none', outliersRemoved: 0 };
+      return { lowest: 0, average: 0, highest: 0, confidence: 'none', outliersRemoved: 0, productsUsed: 0 };
     }
     
     const { cleaned, removed } = removeOutliers(allPrices);
@@ -211,18 +271,48 @@ function calculateWeightedMarketStats(
       average: cleaned.reduce((a, b) => a + b, 0) / cleaned.length,
       highest: Math.max(...cleaned),
       confidence: 'low',
-      outliersRemoved: removed
+      outliersRemoved: removed,
+      productsUsed: 0
     };
   }
   
-  console.log(`📊 Analyzing ${products.length} competitor products`);
+  // 🆕 FILTER BY SIMILARITY - Only use products with similarity > 0.3 (30%)
+  const filteredProducts = products.filter(p => p.similarity_score > 0.3);
+  
+  console.log(`🔍 Similarity filtering: ${products.length} → ${filteredProducts.length} products (removed ${products.length - filteredProducts.length} low-similarity matches)`);
+  
+  if (filteredProducts.length < 3) {
+    console.log('⚠️ Not enough high-similarity products, using aggregate data');
+    const allPrices: number[] = [];
+    aggregates?.forEach(comp => {
+      if (comp.lowest_price) allPrices.push(comp.lowest_price);
+      if (comp.average_price) allPrices.push(comp.average_price);
+      if (comp.highest_price) allPrices.push(comp.highest_price);
+    });
+    
+    if (allPrices.length === 0) {
+      return { lowest: 0, average: 0, highest: 0, confidence: 'very_low', outliersRemoved: 0, productsUsed: filteredProducts.length };
+    }
+    
+    const { cleaned, removed } = removeOutliers(allPrices);
+    return {
+      lowest: Math.min(...cleaned),
+      average: cleaned.reduce((a, b) => a + b, 0) / cleaned.length,
+      highest: Math.max(...cleaned),
+      confidence: 'very_low',
+      outliersRemoved: removed,
+      productsUsed: filteredProducts.length
+    };
+  }
+  
+  console.log(`📊 Analyzing ${filteredProducts.length} high-similarity competitor products`);
   
   // Weight each product by similarity score
   let weightedSum = 0;
   let totalWeight = 0;
   const prices: number[] = [];
   
-  products.forEach(prod => {
+  filteredProducts.forEach(prod => {
     const weight = prod.similarity_score;
     weightedSum += prod.price * weight;
     totalWeight += weight;
@@ -235,7 +325,7 @@ function calculateWeightedMarketStats(
   // Recalculate weighted average with cleaned prices
   let cleanedWeightedSum = 0;
   let cleanedTotalWeight = 0;
-  products.forEach(prod => {
+  filteredProducts.forEach(prod => {
     if (cleaned.includes(prod.price)) {
       const weight = prod.similarity_score;
       cleanedWeightedSum += prod.price * weight;
@@ -249,8 +339,9 @@ function calculateWeightedMarketStats(
     lowest: Math.min(...cleaned),
     average: weightedAverage,
     highest: Math.max(...cleaned),
-    confidence: products.length >= 10 ? 'high' : products.length >= 5 ? 'medium' : 'low',
-    outliersRemoved: removed
+    confidence: filteredProducts.length >= 10 ? 'high' : filteredProducts.length >= 5 ? 'medium' : 'low',
+    outliersRemoved: removed,
+    productsUsed: filteredProducts.length
   };
 }
 
@@ -343,6 +434,37 @@ async function calculateOptimalPrice(
     confidence: marketStats.confidence,
     outliersRemoved: marketStats.outliersRemoved
   });
+  
+  // 🆕 VALIDATE MARKET DATA
+  const validation = validateMarketData(
+    marketStats,
+    baseline.current_price,
+    competitorProducts?.length || 0
+  );
+  
+  console.log(`✓ Market validation: ${validation.reason}`);
+  
+  if (!validation.shouldProceed) {
+    console.log('⚠️ Market data validation failed, returning baseline price');
+    
+    // Insert warning result and stop
+    await supabase.from('pricing_results').insert({
+      baseline_id: baseline.id,
+      merchant_id: baseline.merchant_id,
+      currency: baseline.currency,
+      optimal_price: baseline.current_price,
+      suggested_price: baseline.current_price,
+      inflation_rate: inflationRate,
+      inflation_adjustment: 1 + inflationRate,
+      base_elasticity: baseline.base_elasticity,
+      calibrated_elasticity: baseline.base_elasticity,
+      competitor_factor: 1,
+      has_warning: true,
+      warning_message: validation.reason
+    });
+    
+    return;
+  }
   
   if (marketStats.average === 0) {
     console.log('⚠️ No competitor data available');
