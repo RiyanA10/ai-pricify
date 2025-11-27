@@ -1,22 +1,60 @@
-import { useState, useEffect } from 'react';
-import { Upload, Download, AlertCircle, LogOut } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Check, LogOut, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Card } from '@/components/ui/card';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { parseExcelFile, generateExcelTemplate, type ValidationError, type ProductData } from '@/utils/excelParser';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { CATEGORY_ELASTICITY } from '@/utils/categoryElasticity';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useNavigate } from 'react-router-dom';
 import { User } from '@supabase/supabase-js';
 
+const CATEGORIES = [
+  'Electronics',
+  'Fashion & Apparel',
+  'Home & Garden',
+  'Beauty & Personal Care',
+  'Sports & Outdoors',
+  'Toys & Games',
+  'Books & Media',
+  'Automotive',
+  'Grocery & Food',
+  'Health & Wellness',
+  'Office Supplies',
+  'Pet Supplies',
+  'Jewelry & Watches',
+  'Industrial & Scientific',
+];
+
+type Step = 'product_name' | 'category' | 'current_price' | 'current_quantity' | 'cost_per_unit' | 'currency';
+
+interface FormData {
+  product_name: string;
+  category: string;
+  current_price: string;
+  current_quantity: string;
+  cost_per_unit: string;
+  currency: 'SAR' | 'USD';
+}
+
 export const UploadPage = () => {
-  const [isDragging, setIsDragging] = useState(false);
+  const [currentStep, setCurrentStep] = useState<Step>('product_name');
+  const [formData, setFormData] = useState<FormData>({
+    product_name: '',
+    category: '',
+    current_price: '',
+    current_quantity: '',
+    cost_per_unit: '',
+    currency: 'SAR',
+  });
+  const [completedSteps, setCompletedSteps] = useState<Set<Step>>(new Set());
   const [isProcessing, setIsProcessing] = useState(false);
-  const [errors, setErrors] = useState<ValidationError[]>([]);
   const [user, setUser] = useState<User | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const navigate = useNavigate();
+
+  const steps: Step[] = ['product_name', 'category', 'current_price', 'current_quantity', 'cost_per_unit', 'currency'];
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -24,134 +62,125 @@ export const UploadPage = () => {
     });
   }, []);
 
-  const handleDragOver = (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(true);
+  useEffect(() => {
+    if (inputRef.current && !isProcessing) {
+      inputRef.current.focus();
+    }
+  }, [currentStep, isProcessing]);
+
+  const getStepLabel = (step: Step): string => {
+    const labels: Record<Step, string> = {
+      product_name: 'What product are you selling?',
+      category: 'Which category does it belong to?',
+      current_price: 'How much do you charge now?',
+      current_quantity: 'How many do you sell monthly?',
+      cost_per_unit: "What's your cost per unit?",
+      currency: 'Which currency do you use?',
+    };
+    return labels[step];
   };
 
-  const handleDragLeave = () => {
-    setIsDragging(false);
+  const handleNext = () => {
+    const currentIndex = steps.indexOf(currentStep);
+    
+    // Validate current step
+    if (currentStep === 'product_name' && !formData.product_name.trim()) {
+      toast({ title: 'Please enter a product name', variant: 'destructive' });
+      return;
+    }
+    if (currentStep === 'category' && !formData.category) {
+      toast({ title: 'Please select a category', variant: 'destructive' });
+      return;
+    }
+    if (currentStep === 'current_price' && (!formData.current_price || Number(formData.current_price) <= 0)) {
+      toast({ title: 'Please enter a valid price', variant: 'destructive' });
+      return;
+    }
+    if (currentStep === 'current_quantity' && (!formData.current_quantity || Number(formData.current_quantity) <= 0)) {
+      toast({ title: 'Please enter a valid quantity', variant: 'destructive' });
+      return;
+    }
+    if (currentStep === 'cost_per_unit' && (!formData.cost_per_unit || Number(formData.cost_per_unit) <= 0)) {
+      toast({ title: 'Please enter a valid cost', variant: 'destructive' });
+      return;
+    }
+
+    // Mark current step as completed
+    setCompletedSteps(prev => new Set([...prev, currentStep]));
+
+    // Move to next step or submit
+    if (currentIndex < steps.length - 1) {
+      setCurrentStep(steps[currentIndex + 1]);
+    }
   };
 
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    setIsDragging(false);
-    
-    const files = Array.from(e.dataTransfer.files);
-    const dataFile = files.find(f => {
-      const fileName = f.name.toLowerCase();
-      return fileName.endsWith('.xlsx') || 
-             fileName.endsWith('.xls') || 
-             fileName.endsWith('.csv');
-    });
-    
-    if (dataFile) {
-      await processFile(dataFile);
-    } else {
+  const handleKeyPress = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter') {
+      handleNext();
+    }
+  };
+
+  const handleSubmit = async () => {
+    if (!user) {
       toast({
-        title: 'Invalid file',
-        description: 'Please upload an Excel file (.xlsx, .xls) or CSV file (.csv)',
+        title: 'Authentication required',
+        description: 'Please sign in to continue',
         variant: 'destructive',
       });
+      navigate('/auth');
+      return;
     }
-  };
 
-  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      await processFile(file);
-    }
-  };
-
-  const processFile = async (file: File) => {
     setIsProcessing(true);
-    setErrors([]);
 
     try {
-      const { data: products, errors: validationErrors } = await parseExcelFile(file);
-      
-      if (validationErrors.length > 0) {
-        setErrors(validationErrors);
+      // Validate cost < price
+      if (Number(formData.cost_per_unit) >= Number(formData.current_price)) {
         toast({
-          title: 'Validation errors found',
-          description: `Found ${validationErrors.length} error(s) in your Excel file`,
+          title: 'Invalid data',
+          description: 'Cost per unit must be less than current price',
           variant: 'destructive',
         });
         setIsProcessing(false);
         return;
       }
 
-      if (products.length === 0) {
-        toast({
-          title: 'No data found',
-          description: 'Your Excel file contains no valid products',
-          variant: 'destructive',
-        });
-        setIsProcessing(false);
-        return;
-      }
+      const productData = {
+        merchant_id: user.id,
+        product_name: formData.product_name,
+        category: formData.category,
+        current_price: Number(formData.current_price),
+        current_quantity: Number(formData.current_quantity),
+        cost_per_unit: Number(formData.cost_per_unit),
+        currency: formData.currency,
+        base_elasticity: CATEGORY_ELASTICITY[formData.category],
+      };
 
-      // Use authenticated user's ID
-      if (!user) {
-        toast({
-          title: 'Authentication required',
-          description: 'Please sign in to upload products',
-          variant: 'destructive',
-        });
-        navigate('/auth');
-        return;
-      }
-      const merchantId = user.id;
-
-      // Insert all products into database
-      const productsWithElasticity = products.map(p => ({
-        merchant_id: merchantId,
-        product_name: p.product_name,
-        category: p.category,
-        current_price: p.current_price,
-        current_quantity: p.current_quantity,
-        cost_per_unit: p.cost_per_unit,
-        currency: p.currency,
-        base_elasticity: CATEGORY_ELASTICITY[p.category],
-      }));
-
-      const { data: insertedProducts, error: insertError } = await supabase
+      const { data: insertedProduct, error: insertError } = await supabase
         .from('product_baselines')
-        .insert(productsWithElasticity)
-        .select();
+        .insert(productData)
+        .select()
+        .single();
 
       if (insertError) throw insertError;
 
-      // Trigger processing for ALL products
-      if (insertedProducts && insertedProducts.length > 0) {
-        const processingPromises = insertedProducts.map(product => 
-          supabase.functions.invoke('process-pricing', {
-            body: { baseline_id: product.id }
-          })
-        );
+      // Trigger processing
+      await supabase.functions.invoke('process-pricing', {
+        body: { baseline_id: insertedProduct.id }
+      });
 
-        // Start all processing jobs in parallel
-        await Promise.all(processingPromises);
+      toast({
+        title: 'Success!',
+        description: 'Product uploaded and processing started',
+      });
 
-        toast({
-          title: 'Success!',
-          description: `${products.length} product(s) uploaded and processing started`,
-        });
-
-        // Navigate to processing page with first product ID to show status
-        navigate(`/processing/${insertedProducts[0].id}`);
-      } else {
-        toast({
-          title: 'Success!',
-          description: 'Products uploaded successfully',
-        });
-      }
+      navigate(`/processing/${insertedProduct.id}`);
 
     } catch (error) {
-      console.error('Error processing file:', error);
+      console.error('Error submitting form:', error);
       toast({
         title: 'Error',
-        description: 'Failed to process Excel file. Please try again.',
+        description: 'Failed to submit product. Please try again.',
         variant: 'destructive',
       });
     } finally {
@@ -164,144 +193,194 @@ export const UploadPage = () => {
     navigate('/auth');
   };
 
+  const allCompleted = completedSteps.size === steps.length;
+
   return (
-    <div className="min-h-screen bg-gradient-hero p-4 md:p-8 animate-fade-in">
-      <div className="max-w-4xl mx-auto">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-muted/20 p-4 md:p-8 animate-fade-in">
+      <div className="max-w-3xl mx-auto">
         {/* Header */}
-        <div className="flex items-center justify-between mb-10 animate-slide-up">
-          <div className="text-center flex-1">
-            <div className="inline-flex items-center gap-3 mb-4">
-              <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center shadow-glow">
-                <span className="text-xl font-bold text-white">AT</span>
-              </div>
-              <h1 className="text-5xl md:text-6xl font-bold text-primary">
-                AI TRUEST™
-              </h1>
+        <div className="flex items-center justify-between mb-8">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-primary rounded-xl flex items-center justify-center shadow-lg">
+              <span className="text-lg font-bold text-primary-foreground">AT</span>
             </div>
-            <p className="text-xl md:text-2xl font-semibold text-foreground">
-              Intelligent Pricing Optimization System
-            </p>
+            <h1 className="text-3xl font-bold text-primary">AI TRUEST</h1>
           </div>
           <Button
             onClick={handleSignOut}
-            variant="outline"
+            variant="ghost"
             size="sm"
-            className="ml-4 hover:shadow-lg transition-all"
+            className="text-muted-foreground hover:text-foreground"
           >
             <LogOut className="w-4 h-4 mr-2" />
             Sign Out
           </Button>
         </div>
 
-        <Card className="p-8 md:p-10 shadow-elegant hover:shadow-glow transition-all duration-300 animate-scale-in backdrop-blur-sm bg-white/95">
-          <h2 className="text-3xl font-bold mb-8 flex items-center gap-3 text-foreground">
-            <div className="p-2 bg-primary rounded-lg shadow-md">
-              <Upload className="w-6 h-6 text-white" />
-            </div>
-            Upload Your Product Data
-          </h2>
-
-          {/* Download Template Button */}
-          <div className="mb-8">
-            <Button
-              onClick={generateExcelTemplate}
-              variant="outline"
-              size="lg"
-              className="w-full sm:w-auto hover:shadow-lg hover:scale-105 transition-all"
-            >
-              <Download className="w-5 h-5 mr-2" />
-              Download Excel Template
-            </Button>
-          </div>
-
-          {/* Drag & Drop Area */}
-          <div
-            onDragOver={handleDragOver}
-            onDragLeave={handleDragLeave}
-            onDrop={handleDrop}
-            className={`
-              border-2 border-dashed rounded-2xl p-12 text-center transition-all duration-300 bg-gradient-card
-              ${isDragging ? 'border-primary bg-primary/10 scale-105 shadow-glow' : 'border-border/50'}
-              ${isProcessing ? 'opacity-50 pointer-events-none' : 'cursor-pointer hover:border-primary hover:bg-primary/5 hover:scale-[1.02]'}
-            `}
-          >
-            <input
-              type="file"
-              accept=".xlsx,.xls,.csv"
-              onChange={handleFileSelect}
-              className="hidden"
-              id="file-upload"
-              disabled={isProcessing}
+        {/* Progress Dots */}
+        <div className="flex justify-center gap-2 mb-12">
+          {steps.map((step) => (
+            <div
+              key={step}
+              className={`h-2 w-2 rounded-full transition-all duration-500 ${
+                completedSteps.has(step)
+                  ? 'bg-primary w-8'
+                  : currentStep === step
+                  ? 'bg-primary/50 w-4'
+                  : 'bg-muted'
+              }`}
             />
-            <label htmlFor="file-upload" className="cursor-pointer">
-              <Upload className="w-16 h-16 mx-auto mb-4 text-muted-foreground" />
-              <p className="text-lg font-medium mb-2">
-                {isProcessing ? 'Processing...' : 'Drag & Drop Excel or CSV File Here'}
-              </p>
-              <p className="text-sm text-muted-foreground mb-4">
-                or click to browse
-              </p>
-              <p className="text-xs text-muted-foreground">
-                Supported: .xlsx, .xls, .csv (Max 5MB) • Maximum 10 products per upload
-              </p>
-            </label>
-          </div>
+          ))}
+        </div>
 
-          {/* Validation Errors */}
-          {errors.length > 0 && (
-            <Alert variant="destructive" className="mt-6">
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription>
-                <p className="font-semibold mb-2">Validation Errors:</p>
-                <ul className="list-disc pl-5 space-y-1">
-                  {errors.slice(0, 10).map((err, idx) => (
-                    <li key={idx} className="text-sm">
-                      Row {err.row}, {err.field}: {err.message}
-                    </li>
-                  ))}
-                  {errors.length > 10 && (
-                    <li className="text-sm font-semibold">
-                      ... and {errors.length - 10} more error(s)
-                    </li>
+        {/* Chat Container */}
+        <div className="space-y-6">
+          {/* Completed Steps */}
+          {steps.map((step, index) => {
+            if (!completedSteps.has(step)) return null;
+            
+            return (
+              <div
+                key={step}
+                className="animate-slide-up"
+                style={{ animationDelay: `${index * 100}ms` }}
+              >
+                <div className="flex items-start gap-3">
+                  <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center flex-shrink-0 mt-1">
+                    <Check className="w-4 h-4 text-primary" />
+                  </div>
+                  <div className="flex-1">
+                    <p className="text-sm text-muted-foreground mb-2">{getStepLabel(step)}</p>
+                    <div className="bg-card border border-border rounded-2xl rounded-tl-none px-4 py-3 shadow-sm">
+                      <p className="font-medium text-foreground">
+                        {step === 'currency' 
+                          ? formData[step]
+                          : step === 'category'
+                          ? formData[step]
+                          : step === 'product_name'
+                          ? formData[step]
+                          : `${formData[step]} ${step === 'current_price' || step === 'cost_per_unit' ? formData.currency : 'units'}`
+                        }
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {/* Current Step Input */}
+          {!allCompleted && (
+            <div className="animate-fade-in">
+              <div className="flex items-start gap-3">
+                <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center flex-shrink-0 mt-1 animate-pulse">
+                  <span className="w-2 h-2 rounded-full bg-primary-foreground" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm text-muted-foreground mb-3">{getStepLabel(currentStep)}</p>
+                  
+                  {currentStep === 'category' ? (
+                    <Select
+                      value={formData.category}
+                      onValueChange={(value) => {
+                        setFormData({ ...formData, category: value });
+                        setTimeout(() => handleNext(), 100);
+                      }}
+                    >
+                      <SelectTrigger className="w-full bg-background border-2 border-primary/20 focus:border-primary rounded-2xl px-4 py-6 text-left shadow-sm">
+                        <SelectValue placeholder="Select a category" />
+                      </SelectTrigger>
+                      <SelectContent className="bg-background">
+                        {CATEGORIES.map((cat) => (
+                          <SelectItem key={cat} value={cat}>
+                            {cat}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : currentStep === 'currency' ? (
+                    <div className="flex gap-3">
+                      <Button
+                        onClick={() => {
+                          setFormData({ ...formData, currency: 'SAR' });
+                          setTimeout(() => handleNext(), 100);
+                        }}
+                        variant={formData.currency === 'SAR' ? 'default' : 'outline'}
+                        size="lg"
+                        className="flex-1 rounded-2xl py-6"
+                      >
+                        SAR
+                      </Button>
+                      <Button
+                        onClick={() => {
+                          setFormData({ ...formData, currency: 'USD' });
+                          setTimeout(() => handleNext(), 100);
+                        }}
+                        variant={formData.currency === 'USD' ? 'default' : 'outline'}
+                        size="lg"
+                        className="flex-1 rounded-2xl py-6"
+                      >
+                        USD
+                      </Button>
+                    </div>
+                  ) : (
+                    <Input
+                      ref={inputRef}
+                      type={currentStep === 'product_name' ? 'text' : 'number'}
+                      value={formData[currentStep]}
+                      onChange={(e) => setFormData({ ...formData, [currentStep]: e.target.value })}
+                      onKeyPress={handleKeyPress}
+                      placeholder={
+                        currentStep === 'product_name'
+                          ? 'e.g., iPhone 15 Pro Max'
+                          : currentStep === 'current_price'
+                          ? 'e.g., 4999'
+                          : currentStep === 'current_quantity'
+                          ? 'e.g., 50'
+                          : 'e.g., 3500'
+                      }
+                      className="w-full bg-background border-2 border-primary/20 focus:border-primary rounded-2xl px-4 py-6 text-lg shadow-sm"
+                      min={currentStep !== 'product_name' ? '0' : undefined}
+                      step={currentStep !== 'product_name' && currentStep !== 'current_quantity' ? '0.01' : undefined}
+                    />
                   )}
-                </ul>
-              </AlertDescription>
-            </Alert>
+                  
+                  {currentStep !== 'category' && currentStep !== 'currency' && (
+                    <p className="text-xs text-muted-foreground mt-2 ml-1">Press Enter to continue</p>
+                  )}
+                </div>
+              </div>
+            </div>
           )}
 
-          {/* Requirements */}
-          <div className="mt-8 space-y-4">
-            <h3 className="font-semibold text-lg">Required Columns:</h3>
-            <ul className="space-y-2 text-sm text-muted-foreground">
-              <li>• <strong>Product Name</strong> - Text description of your product</li>
-              <li>• <strong>Category</strong> - Must match exactly from the 14 allowed categories</li>
-              <li>• <strong>Current Price</strong> - Your current selling price (must be positive)</li>
-              <li>• <strong>Current Quantity</strong> - Monthly sales volume (integer)</li>
-              <li>• <strong>Cost per Unit</strong> - Your cost (must be less than current price)</li>
-              <li>• <strong>Currency</strong> - SAR or USD</li>
-            </ul>
-
-            <Alert>
-              <AlertCircle className="h-4 w-4" />
-              <AlertDescription className="text-sm">
-                <strong>Important:</strong> Category must be selected from the dropdown in Excel.
-                Cost must be less than current price. All fields are required.
-              </AlertDescription>
-            </Alert>
-          </div>
-
-          {/* Footer */}
-          <footer className="text-center py-8 border-t border-border/50 mt-10">
-            <p className="text-sm font-semibold text-foreground mb-3">
-              © 2025 AI TRUEST™ Saudi Arabia. All Rights Reserved.
-            </p>
-            <div className="flex items-center justify-center gap-4 text-sm text-foreground/80">
-              <span>📩 <a href="mailto:info@paybacksa.com" className="hover:text-primary hover:underline transition-colors font-medium">info@paybacksa.com</a></span>
-              <span>•</span>
-              <span>📍 Riyadh, Saudi Arabia</span>
+          {/* Submit Button */}
+          {allCompleted && (
+            <div className="flex justify-center pt-8 animate-scale-in">
+              <Button
+                onClick={handleSubmit}
+                disabled={isProcessing}
+                size="lg"
+                className="px-12 py-6 rounded-2xl text-lg shadow-lg hover:shadow-xl transition-all"
+              >
+                {isProcessing ? (
+                  <>
+                    <Loader2 className="w-5 h-5 mr-2 animate-spin" />
+                    Analyzing...
+                  </>
+                ) : (
+                  'Start AI Analysis'
+                )}
+              </Button>
             </div>
-          </footer>
-        </Card>
+          )}
+        </div>
+
+        {/* Footer */}
+        <footer className="text-center pt-16 pb-8">
+          <p className="text-sm text-muted-foreground">
+            © 2025 AI TRUEST™ • Intelligent Pricing Platform
+          </p>
+        </footer>
       </div>
     </div>
   );
