@@ -527,7 +527,7 @@ async function calculateOptimalPrice(
   );
   
   const inflationAdjustment = 1 + inflationRate;
-  const suggestedPrice = Math.round(profitCalc.marketAdjusted * 100) / 100;
+  let suggestedPrice = Math.round(profitCalc.marketAdjusted * 100) / 100;
   
   // Calculate competitor factor for context
   const competitorFactor = marketStats.average / baseline.current_price;
@@ -535,6 +535,13 @@ async function calculateOptimalPrice(
   
   // Calculate profit projections
   const currentProfit = (baseline.current_price - baseline.cost_per_unit) * baseline.current_quantity;
+  
+  // 🆕 SAFETY CHECK: Never suggest a price that reduces profit
+  let finalSuggestedPrice = suggestedPrice;
+  let hasWarning = false;
+  let warningMessage = '';
+  
+  // Calculate expected profit with suggested price
   const newQuantity = baseline.current_quantity * Math.pow(
     baseline.current_price / suggestedPrice,
     calibratedElasticity
@@ -543,14 +550,41 @@ async function calculateOptimalPrice(
   const profitIncrease = newProfit - currentProfit;
   const profitIncreasePercent = (profitIncrease / currentProfit) * 100;
   
-  const positionVsMarket = ((suggestedPrice - marketStats.average) / marketStats.average) * 100;
+  // If suggested price would reduce profit, keep current price
+  if (profitIncrease < 0) {
+    console.log('⚠️ SAFETY CHECK: Suggested price would reduce profit!');
+    console.log(`   Current profit: ${currentProfit.toFixed(2)}`);
+    console.log(`   Expected profit with ${suggestedPrice}: ${newProfit.toFixed(2)}`);
+    console.log(`   Profit change: ${profitIncrease.toFixed(2)} (${profitIncreasePercent.toFixed(1)}%)`);
+    console.log('   → Keeping current price to maintain profitability');
+    
+    // Keep current price but still show the market analysis
+    finalSuggestedPrice = baseline.current_price;
+    hasWarning = true;
+    warningMessage = `Market prices (avg: ${marketStats.average.toFixed(0)} ${baseline.currency}) are lower than your current price. Lowering to match market would reduce profit by ${Math.abs(profitIncreasePercent).toFixed(1)}%. Current price maintained for profitability.`;
+  }
   
   console.log('=== Price Calculation Complete ===');
   console.log(`💰 Theoretical optimal: ${profitCalc.theoreticalOptimal.toFixed(2)}`);
   console.log(`📊 Market adjusted: ${profitCalc.marketAdjusted.toFixed(2)}`);
-  console.log(`🎯 Final suggested: ${suggestedPrice.toFixed(2)}`);
+  console.log(`🎯 Final suggested: ${finalSuggestedPrice.toFixed(2)}`);
   console.log(`📝 Reasoning: ${profitCalc.reasoning}`);
-  console.log(`💵 Expected profit increase: ${profitIncreasePercent.toFixed(1)}%`);
+  if (hasWarning) {
+    console.log(`⚠️ Warning: ${warningMessage}`);
+  } else {
+    console.log(`💵 Expected profit increase: ${profitIncreasePercent.toFixed(1)}%`);
+  }
+
+  // Recalculate with final suggested price if it was changed
+  const finalNewQuantity = baseline.current_quantity * Math.pow(
+    baseline.current_price / finalSuggestedPrice,
+    calibratedElasticity
+  );
+  const finalNewProfit = (finalSuggestedPrice - baseline.cost_per_unit) * finalNewQuantity;
+  const finalProfitIncrease = finalNewProfit - currentProfit;
+  const finalProfitIncreasePercent = (finalProfitIncrease / currentProfit) * 100;
+  
+  const positionVsMarket = ((finalSuggestedPrice - marketStats.average) / marketStats.average) * 100;
 
   // Insert pricing results
   await supabase.from('pricing_results').insert({
@@ -558,7 +592,7 @@ async function calculateOptimalPrice(
     merchant_id: baseline.merchant_id,
     currency: baseline.currency,
     optimal_price: profitCalc.theoreticalOptimal,
-    suggested_price: suggestedPrice,
+    suggested_price: finalSuggestedPrice,
     inflation_rate: inflationRate,
     inflation_adjustment: inflationAdjustment,
     base_elasticity: baseline.base_elasticity,
@@ -568,17 +602,19 @@ async function calculateOptimalPrice(
     market_average: marketStats.average,
     market_highest: marketStats.highest,
     position_vs_market: positionVsMarket,
-    expected_monthly_profit: newProfit,
-    profit_increase_amount: profitIncrease,
-    profit_increase_percent: profitIncreasePercent
+    expected_monthly_profit: finalNewProfit,
+    profit_increase_amount: finalProfitIncrease,
+    profit_increase_percent: finalProfitIncreasePercent,
+    has_warning: hasWarning,
+    warning_message: hasWarning ? warningMessage : null
   });
   
   // Insert performance tracking (predicted values)
   await supabase.from('pricing_performance').insert({
     baseline_id: baseline.id,
     merchant_id: baseline.merchant_id,
-    suggested_price: suggestedPrice,
-    predicted_sales: Math.round(newQuantity),
+    suggested_price: finalSuggestedPrice,
+    predicted_sales: Math.round(finalNewQuantity),
     market_average: marketStats.average,
     market_lowest: marketStats.lowest,
     market_highest: marketStats.highest

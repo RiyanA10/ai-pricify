@@ -215,6 +215,11 @@ Position vs Market,${results.position_vs_market ? results.position_vs_market.toF
   const { baseline, results, competitors } = data;
   const priceChange = ((results.suggested_price - baseline.current_price) / baseline.current_price) * 100;
   const isPriceIncrease = priceChange > 0;
+  
+  // Calculate profit changes
+  const currentMonthlyProfit = (baseline.current_price - baseline.cost_per_unit) * baseline.current_quantity;
+  const profitChange = results.profit_increase_amount;
+  const isProfitIncrease = profitChange > 0;
 
   return (
     <div className="min-h-screen bg-gradient-hero p-4 md:p-8 animate-fade-in">
@@ -311,9 +316,9 @@ Position vs Market,${results.position_vs_market ? results.position_vs_market.toF
             <div className="space-y-4">
               <div className="flex justify-between items-center pb-3 border-b">
                 <span className="text-sm font-medium text-muted-foreground">Current Price:</span>
-                <span className="text-xl font-bold text-foreground">
-                  {formatPrice(baseline.current_price, baseline.currency)}
-                </span>
+                <div className="text-xl font-bold text-foreground">
+                  {baseline.current_price.toFixed(2)} <span className="text-base">{baseline.currency}</span>
+                </div>
               </div>
               
               <div className="flex justify-between items-center pb-4 border-b-2 border-primary">
@@ -324,9 +329,11 @@ Position vs Market,${results.position_vs_market ? results.position_vs_market.toF
                     <span className="ml-1 text-xs">(Recommended)</span>
                   </span>
                 </div>
-                <span className="text-2xl font-bold text-primary">
-                  {formatPrice(results.suggested_price, baseline.currency)}
-                </span>
+                <div className="text-right">
+                  <div className="text-2xl font-bold text-primary">
+                    {results.suggested_price.toFixed(2)} <span className="text-lg">{baseline.currency}</span>
+                  </div>
+                </div>
               </div>
               
               <div className="flex justify-between items-center pb-3 border-b">
@@ -334,9 +341,9 @@ Position vs Market,${results.position_vs_market ? results.position_vs_market.toF
                   Theoretical Optimal:
                   <span className="ml-1 text-xs">(Max profit, no market constraints)</span>
                 </span>
-                <span className="text-lg font-semibold text-muted-foreground">
-                  {formatPrice(results.optimal_price, baseline.currency)}
-                </span>
+                <div className="text-lg font-semibold text-muted-foreground">
+                  {results.optimal_price.toFixed(2)} <span className="text-sm">{baseline.currency}</span>
+                </div>
               </div>
               
               <div className="flex justify-between items-center">
@@ -358,25 +365,36 @@ Position vs Market,${results.position_vs_market ? results.position_vs_market.toF
               <div className="flex justify-between items-center pb-3 border-b">
                 <span className="text-sm font-medium text-muted-foreground">Current Monthly Profit:</span>
                 <span className="text-base font-semibold text-foreground">
-                  {formatPrice((baseline.current_price - baseline.cost_per_unit) * baseline.current_quantity, baseline.currency)}
+                  {formatPrice(currentMonthlyProfit, baseline.currency)}
                 </span>
               </div>
               
               <div className="flex justify-between items-center pb-3 border-b">
-                <span className="text-sm font-medium text-muted-foreground">Expected Monthly Profit:</span>
-                <span className="text-base font-semibold text-success">
+                <span className="text-sm font-medium text-muted-foreground">
+                  {isProfitIncrease ? 'Expected Monthly Profit (After):' : 'Expected Monthly Profit (If Applied):'}
+                </span>
+                <span className={`text-base font-semibold ${isProfitIncrease ? 'text-success' : 'text-destructive'}`}>
                   {formatPrice(results.expected_monthly_profit, baseline.currency)}
                 </span>
               </div>
               
               <div className="flex justify-between items-center">
-                <span className="text-sm font-medium text-muted-foreground">Profit Increase:</span>
-                <span className="text-lg font-bold text-success">
-                  +{formatPrice(results.profit_increase_amount, baseline.currency)} 
-                  <span className="text-sm ml-1">
-                    (+{formatNumber(results.profit_increase_percent, 1)}%)
-                  </span>
+                <span className="text-sm font-medium text-muted-foreground">
+                  {isProfitIncrease ? 'Profit Increase:' : 'Profit Change:'}
                 </span>
+                <div className="flex items-center gap-2">
+                  {isProfitIncrease ? (
+                    <TrendingUp className="w-4 h-4 text-success" />
+                  ) : (
+                    <TrendingDown className="w-4 h-4 text-destructive" />
+                  )}
+                  <span className={`text-lg font-bold ${isProfitIncrease ? 'text-success' : 'text-destructive'}`}>
+                    {isProfitIncrease ? '+' : ''}{formatPrice(profitChange, baseline.currency)} 
+                    <span className="text-sm ml-1">
+                      ({isProfitIncrease ? '+' : ''}{formatNumber(results.profit_increase_percent, 1)}%)
+                    </span>
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -407,9 +425,22 @@ Position vs Market,${results.position_vs_market ? results.position_vs_market.toF
             </CardContent>
           </Card>
 
-          {/* Warning if present */}
+          {/* Warning if profit decreases */}
+          {!isProfitIncrease && (
+            <Alert variant="destructive" className="mt-6">
+              <AlertDescription>
+                <strong>⚠️ Warning:</strong> The suggested price would <strong>reduce your monthly profit by {formatPrice(Math.abs(profitChange), baseline.currency)} ({Math.abs(results.profit_increase_percent).toFixed(1)}%)</strong>.
+                <br /><br />
+                <strong>Reason:</strong> Market prices are significantly lower than your current price. Lowering to match the market would hurt your profitability.
+                <br /><br />
+                <strong>Recommendation:</strong> Consider keeping your current price to maintain profit margins, or evaluate if your product offers unique value that justifies the premium pricing.
+              </AlertDescription>
+            </Alert>
+          )}
+          
+          {/* Other warnings */}
           {results.has_warning && (
-            <Alert className="bg-warning/10 border-warning">
+            <Alert className="bg-warning/10 border-warning mt-6">
               <AlertDescription className="text-warning-foreground">
                 <strong>⚠️ Note:</strong> {results.warning_message}
               </AlertDescription>

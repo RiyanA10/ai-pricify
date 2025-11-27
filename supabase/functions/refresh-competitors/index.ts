@@ -860,6 +860,7 @@ serve(async (req) => {
 
     const results = [];
     const lowConfidenceProducts: string[] = [];
+    const failedMarketplaces: string[] = [];  // Track marketplaces that failed to find products
     let foundValidProducts = false;
 
     for (const marketplaceKey of marketplaceKeys) {
@@ -951,6 +952,9 @@ serve(async (req) => {
           
           console.log(`✓ ${products.length} products: ${lowest.toFixed(2)}-${highest.toFixed(2)} ${baseline.currency}`);
         } else {
+          // Track failed marketplace
+          failedMarketplaces.push(marketplaceKey);
+          
           await supabase.from('competitor_prices').insert({
             baseline_id,
             merchant_id: baseline.merchant_id,
@@ -964,7 +968,7 @@ serve(async (req) => {
             status: 'no_data'
           });
           
-          console.log(`✗ No matching products`);
+          console.log(`✗ No matching products - added to failed list`);
         }
         
         // Rate limit between marketplaces
@@ -989,10 +993,18 @@ serve(async (req) => {
       }
     }
 
-    // GOOGLE FALLBACK: If no valid products found across all marketplaces, try Google Shopping
-    if (!foundValidProducts || lowConfidenceProducts.length > 0) {
+    // GOOGLE FALLBACK: Trigger if ANY marketplace failed OR no products found OR low confidence
+    const shouldUseGoogleFallback = !foundValidProducts || failedMarketplaces.length > 0 || lowConfidenceProducts.length > 0;
+    
+    if (shouldUseGoogleFallback) {
       console.log('\n=== GOOGLE FALLBACK TRIGGERED ===');
-      console.log(`Reason: ${!foundValidProducts ? 'No products found' : `${lowConfidenceProducts.length} low confidence products`}`);
+      if (!foundValidProducts) {
+        console.log('Reason: No products found across all marketplaces');
+      } else if (failedMarketplaces.length > 0) {
+        console.log(`Reason: ${failedMarketplaces.length} marketplace(s) failed: ${failedMarketplaces.join(', ')}`);
+      } else {
+        console.log(`Reason: ${lowConfidenceProducts.length} low confidence products`);
+      }
       
       try {
         const googleConfig = MARKETPLACE_CONFIGS['google-shopping'];
