@@ -14,6 +14,51 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_validation_cache: {
+        Row: {
+          ai_decision: string
+          competitor_product_name: string
+          confidence_score: number
+          created_at: string | null
+          expires_at: string | null
+          hit_count: number | null
+          id: string
+          marketplace: string
+          merchant_id: string
+          product_pair_hash: string
+          reasoning: string | null
+          your_product_name: string
+        }
+        Insert: {
+          ai_decision: string
+          competitor_product_name: string
+          confidence_score: number
+          created_at?: string | null
+          expires_at?: string | null
+          hit_count?: number | null
+          id?: string
+          marketplace: string
+          merchant_id: string
+          product_pair_hash: string
+          reasoning?: string | null
+          your_product_name: string
+        }
+        Update: {
+          ai_decision?: string
+          competitor_product_name?: string
+          confidence_score?: number
+          created_at?: string | null
+          expires_at?: string | null
+          hit_count?: number | null
+          id?: string
+          marketplace?: string
+          merchant_id?: string
+          product_pair_hash?: string
+          reasoning?: string | null
+          your_product_name?: string
+        }
+        Relationships: []
+      }
       baseline_shares: {
         Row: {
           baseline_id: string
@@ -200,6 +245,56 @@ export type Database = {
           source?: string | null
         }
         Relationships: []
+      }
+      manual_review_queue: {
+        Row: {
+          admin_notes: string | null
+          attempted_marketplaces: string[]
+          baseline_id: string | null
+          created_at: string | null
+          google_fallback_attempted: boolean | null
+          id: string
+          merchant_id: string
+          product_name: string
+          reviewed_at: string | null
+          reviewed_by: string | null
+          status: string | null
+        }
+        Insert: {
+          admin_notes?: string | null
+          attempted_marketplaces: string[]
+          baseline_id?: string | null
+          created_at?: string | null
+          google_fallback_attempted?: boolean | null
+          id?: string
+          merchant_id: string
+          product_name: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string | null
+        }
+        Update: {
+          admin_notes?: string | null
+          attempted_marketplaces?: string[]
+          baseline_id?: string | null
+          created_at?: string | null
+          google_fallback_attempted?: boolean | null
+          id?: string
+          merchant_id?: string
+          product_name?: string
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          status?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "manual_review_queue_baseline_id_fkey"
+            columns: ["baseline_id"]
+            isOneToOne: false
+            referencedRelation: "product_baselines"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       pricing_performance: {
         Row: {
@@ -476,6 +571,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      clean_expired_cache: { Args: never; Returns: number }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
