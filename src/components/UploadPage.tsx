@@ -144,11 +144,6 @@ export const UploadPage = () => {
     if (currentIndex < steps.length - 1) {
       const nextStep = steps[currentIndex + 1];
       setCurrentStep(nextStep);
-      
-      // Auto-suggest category when moving from product_name to category
-      if (nextStep === 'category' && formData.product_name.trim()) {
-        await suggestCategoryFromAI(formData.product_name.trim());
-      }
     }
   };
 
