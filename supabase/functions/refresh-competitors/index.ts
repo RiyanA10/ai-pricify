@@ -210,30 +210,37 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     },
     selectors: {
       containers: [
-        'div.product-item-info',
-        'li.product-item',
+        // Primary - Magento-based selectors
+        '.product-items .product-item',           // Magento standard
+        '.products.list .product-item',           // List view
+        'li.product-item',                        // List item
+        'div.product-item-info',                  // Item info wrapper
+        // Fallback - generic
         'div.products-grid .item',
         'ol.products.list .item',
-        'div.product-item',
-        'div[class*="product"]',
-        'div.item',
-        'article[class*="product"]',
-        'div.product-card'
+        'div[data-product-sku]',
+        'article.product',
+        'div[class*="product"]'
       ],
       productName: [
-        'a.product-item-link',
-        '.product.name a',
-        'span.product-item-link',
+        // Magento standard
+        '.product-item-info .product-item-link',  // Primary link
+        'a.product-item-link',                    // Direct link
+        '.product-item-name a',                   // Name wrapper
+        '.product.name a',                        // Name in product
+        // Fallback
         'h2.product-name a',
+        'span.product-item-link',
         'a[class*="product-name"]',
-        'div.product-name',
-        'h3 a',
         '.product-title'
       ],
       price: [
-        '[data-price-type="finalPrice"] .price',
-        'span[data-price-amount]',
-        '.price-wrapper .price',
+        // Magento standard
+        '.price-box .price',                      // Primary price box
+        'span[data-price-amount]',                // Data attribute
+        '[data-price-type="finalPrice"] .price',  // Final price
+        '.price-wrapper .price',                  // Wrapper
+        // Fallback
         '.price-final_price .price',
         'span.price',
         'span[class*="price-value"]',
@@ -755,7 +762,7 @@ interface ScrapedProduct {
   url?: string;
 }
 
-// ✅ FIX 4: Google SERP API for reliable fallback
+// ✅ FIX: Google SERP with stealth_proxy for reliable scraping
 async function scrapeGoogleSERP(
   productName: string,
   baselinePrice: number,
@@ -769,46 +776,178 @@ async function scrapeGoogleSERP(
     return [];
   }
   
-  console.log(`\n🔍 Google SERP API Search`);
+  console.log(`\n🔍 Google SERP Search (stealth_proxy)`);
   console.log(`   Query: "${productName} price"`);
   
   try {
-    // Use ScrapingBee's Google SERP API endpoint
-    const sbUrl = new URL('https://app.scrapingbee.com/api/v1/google');
+    // ✅ Use regular API with stealth_proxy to scrape Google search directly
+    const googleSearchUrl = `https://www.google.com/search?q=${encodeURIComponent(productName + ' price')}`;
+    
+    const sbUrl = new URL('https://app.scrapingbee.com/api/v1/');
     sbUrl.searchParams.set('api_key', scrapingbeeApiKey);
-    sbUrl.searchParams.set('search', `${productName} price`);
-    sbUrl.searchParams.set('language', 'en');
+    sbUrl.searchParams.set('url', googleSearchUrl);
+    sbUrl.searchParams.set('stealth_proxy', 'true');  // ← Critical for bypassing bot detection
+    sbUrl.searchParams.set('render_js', 'true');
+    sbUrl.searchParams.set('wait', '3000');
     sbUrl.searchParams.set('country_code', currency === 'SAR' ? 'sa' : 'us');
-    sbUrl.searchParams.set('add_html', 'true');
     
     const response = await fetch(sbUrl.toString());
     
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`❌ SERP API error: ${response.status} - ${errorText}`);
+      console.error(`❌ SERP error: ${response.status} - ${errorText}`);
       return [];
     }
     
     const html = await response.text();
-    console.log(`✅ Received ${html.length} chars from SERP API`);
+    console.log(`✅ Received ${html.length} chars from Google SERP`);
     
-    // Parse HTML response (SERP API returns HTML with shopping results)
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
     if (!doc) return [];
     
-    // Use Google Shopping selectors
+    // Use Google organic search result selectors
     const containers = trySelectAll(doc, [
-      '.sh-dgr__content',
-      '[data-docid]',
-      '.sh-dlr__list-result',
-      'div[data-sh-pr]'
+      'div.tF2Cxc',      // Google search result container
+      'div.g',           // Classic search result
+      '[data-hveid]',    // Attribute-based selector
+      '.yuRUbf'          // URL/title container
     ]);
     
     if (containers.length === 0) {
-      console.log('⚠️ No Google Shopping results found');
+      const bodySnippet = doc.body?.innerHTML?.substring(0, 500).replace(/\s+/g, ' ') || '';
+      console.log(`⚠️ No Google results found. HTML sample: ${bodySnippet}`);
       return [];
     }
+    
+    console.log(`✓ Found ${containers.length} Google search results`);
+    
+    const products: ScrapedProduct[] = [];
+    const normalizedBaseline = normalizeProductName(baselineFullName);
+    
+    for (let i = 0; i < Math.min(containers.length, 30); i++) {
+      const container = containers[i];
+      
+      // Extract title
+      const nameEl = trySelectOne(container, [
+        'h3',
+        '.LC20lb',
+        'div[role="heading"]'
+      ]);
+      if (!nameEl) continue;
+      
+      const name = nameEl.textContent?.trim();
+      if (!name) continue;
+      
+      // Extract snippet/description which might contain price
+      const snippetEl = trySelectOne(container, [
+        '.VwiC3b',
+        '.lEBKkf',
+        'div[data-content-feature="1"]',
+        'div.s'
+      ]);
+      
+      const snippet = snippetEl?.textContent?.trim() || '';
+      const combinedText = `${name} ${snippet}`;
+      
+      // Try to extract price from combined text
+      const extracted = extractPrice(combinedText, currency);
+      if (!extracted || extracted.price <= 0) continue;
+      
+      const normalizedCompetitor = normalizeProductName(name);
+      const similarity = calculateSimilarity(normalizedBaseline, normalizedCompetitor);
+      const priceRatio = extracted.price / baselinePrice;
+      
+      // Extract URL
+      let productUrl: string | undefined;
+      try {
+        const linkEl = container.querySelector('a[href]');
+        if (linkEl) {
+          const href = linkEl.getAttribute('href');
+          if (href) productUrl = href;
+        }
+      } catch (e) {
+        // Ignore
+      }
+      
+      products.push({
+        name,
+        price: extracted.price,
+        similarity,
+        priceRatio,
+        url: productUrl
+      });
+    }
+    
+    console.log(`✓ Extracted ${products.length} products from Google SERP`);
+    return products.sort((a, b) => b.similarity - a.similarity).slice(0, 20);
+    
+  } catch (error: any) {
+    console.error(`❌ Google SERP error:`, error.message);
+    return [];
+  }
+}
+
+// ✅ NEW: Dedicated Google Shopping scraper with stealth_proxy
+async function scrapeGoogleShopping(
+  productName: string,
+  baselinePrice: number,
+  currency: string,
+  baselineFullName: string
+): Promise<ScrapedProduct[]> {
+  const scrapingbeeApiKey = Deno.env.get('SCRAPINGBEE_API_KEY');
+  
+  if (!scrapingbeeApiKey) {
+    console.error('SCRAPINGBEE_API_KEY not configured');
+    return [];
+  }
+  
+  console.log(`\n🛒 Google Shopping Search (stealth_proxy)`);
+  console.log(`   Query: "${productName}"`);
+  
+  try {
+    // ✅ Use Google Shopping tab directly with stealth_proxy
+    const shoppingUrl = `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(productName)}`;
+    
+    const sbUrl = new URL('https://app.scrapingbee.com/api/v1/');
+    sbUrl.searchParams.set('api_key', scrapingbeeApiKey);
+    sbUrl.searchParams.set('url', shoppingUrl);
+    sbUrl.searchParams.set('stealth_proxy', 'true');  // ← Critical!
+    sbUrl.searchParams.set('render_js', 'true');
+    sbUrl.searchParams.set('wait', '5000');  // Shopping needs more time
+    sbUrl.searchParams.set('country_code', currency === 'SAR' ? 'sa' : 'us');
+    
+    const response = await fetch(sbUrl.toString());
+    
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`❌ Shopping error: ${response.status} - ${errorText}`);
+      return [];
+    }
+    
+    const html = await response.text();
+    console.log(`✅ Received ${html.length} chars from Google Shopping`);
+    
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    if (!doc) return [];
+    
+    // Google Shopping product selectors
+    const containers = trySelectAll(doc, [
+      'div[data-sh-pr]',         // Shopping product container
+      '.sh-dgr__content',        // Grid result
+      '[data-docid]',            // Document ID
+      '.sh-dlr__list-result',    // List result
+      'div.sh-dgr__grid-result'  // Grid result alternative
+    ]);
+    
+    if (containers.length === 0) {
+      const bodySnippet = doc.body?.innerHTML?.substring(0, 500).replace(/\s+/g, ' ') || '';
+      console.log(`⚠️ No Shopping results found. HTML sample: ${bodySnippet}`);
+      return [];
+    }
+    
+    console.log(`✓ Found ${containers.length} Shopping results`);
     
     const products: ScrapedProduct[] = [];
     const normalizedBaseline = normalizeProductName(baselineFullName);
@@ -818,8 +957,10 @@ async function scrapeGoogleSERP(
       
       const nameEl = trySelectOne(container, [
         'h3',
+        'h4',
         '.sh-np__product-title',
         'div[role="heading"]',
+        '[data-sh-pr] h3',
         '[data-sh-pr] h4'
       ]);
       if (!nameEl) continue;
@@ -831,7 +972,8 @@ async function scrapeGoogleSERP(
         '.a8Pemb',
         'span[aria-label*="$"]',
         'span[aria-label*="SAR"]',
-        '[data-sh-pr] span:first-child',
+        'span[aria-label*="price"]',
+        '[data-sh-pr] span.a8Pemb',
         'b'
       ]);
       if (!priceEl) continue;
@@ -846,19 +988,31 @@ async function scrapeGoogleSERP(
       const similarity = calculateSimilarity(normalizedBaseline, normalizedCompetitor);
       const priceRatio = extracted.price / baselinePrice;
       
+      let productUrl: string | undefined;
+      try {
+        const linkEl = container.querySelector('a[href]');
+        if (linkEl) {
+          const href = linkEl.getAttribute('href');
+          if (href) productUrl = href.startsWith('http') ? href : `https://www.google.com${href}`;
+        }
+      } catch (e) {
+        // Ignore
+      }
+      
       products.push({
         name,
         price: extracted.price,
         similarity,
-        priceRatio
+        priceRatio,
+        url: productUrl
       });
     }
     
-    console.log(`✓ SERP API found ${products.length} products`);
+    console.log(`✓ Extracted ${products.length} products from Google Shopping`);
     return products.sort((a, b) => b.similarity - a.similarity).slice(0, 20);
     
   } catch (error: any) {
-    console.error(`❌ SERP API error:`, error.message);
+    console.error(`❌ Google Shopping error:`, error.message);
     return [];
   }
 }
@@ -877,150 +1031,177 @@ async function scrapeMarketplacePrices(
     return [];
   }
   
-  const searchUrl = config.searchUrl + encodeURIComponent(productName);
+  // ✅ NEW: Try multiple search query variations
+  const searchQueries = [
+    productName,                                           // Original: "iPhone 17 Pro Max 256GB"
+    productName.replace(/\s+/g, '%20'),                   // URL encoded spaces
+    productName.split(' ').slice(0, 4).join(' '),        // Shorter: "iPhone 17 Pro Max"
+    `Apple ${productName}`,                               // With brand prefix
+  ];
+  
   console.log(`\n🐝 Scraping ${config.name}`);
-  console.log(`   URL: ${searchUrl}`);
   console.log(`   Config:`, config.scrapingBeeOptions);
   
-  let retries = 2;
-  let lastError: any = null;
+  let allProducts: ScrapedProduct[] = [];
   
-  while (retries >= 0) {
-    try {
-      const sbUrl = new URL('https://app.scrapingbee.com/api/v1/');
-      sbUrl.searchParams.set('api_key', scrapingbeeApiKey);
-      sbUrl.searchParams.set('url', searchUrl);
-      sbUrl.searchParams.set('render_js', String(config.scrapingBeeOptions.renderJs));
-      sbUrl.searchParams.set('wait', String(config.scrapingBeeOptions.wait));
-      sbUrl.searchParams.set('block_resources', String(config.scrapingBeeOptions.blockResources));
-      sbUrl.searchParams.set('block_ads', String(config.scrapingBeeOptions.blockAds));
-      sbUrl.searchParams.set('country_code', config.scrapingBeeOptions.countryCode);
-      sbUrl.searchParams.set('premium_proxy', 'true');
-      sbUrl.searchParams.set('wait_browser', 'load');
-      
-      // ✅ FIX: Add custom_google parameter for Google Shopping
-      if (config.name === 'Google Shopping') {
-        sbUrl.searchParams.set('custom_google', 'true');
-      }
-      
-      const response = await fetch(sbUrl.toString());
-      
-      if (response.status === 500) {
-        console.log(`⚠️ Got HTTP 500, retries left: ${retries}`);
+  // Try each search query until we get products
+  for (let queryIndex = 0; queryIndex < searchQueries.length; queryIndex++) {
+    const query = searchQueries[queryIndex];
+    const searchUrl = config.searchUrl + encodeURIComponent(query);
+    
+    if (queryIndex > 0) {
+      console.log(`   📝 Trying variation ${queryIndex + 1}: "${query}"`);
+    } else {
+      console.log(`   URL: ${searchUrl}`);
+    }
+    
+    let retries = 2;
+    let lastError: any = null;
+    
+    while (retries >= 0) {
+      try {
+        const sbUrl = new URL('https://app.scrapingbee.com/api/v1/');
+        sbUrl.searchParams.set('api_key', scrapingbeeApiKey);
+        sbUrl.searchParams.set('url', searchUrl);
+        sbUrl.searchParams.set('render_js', String(config.scrapingBeeOptions.renderJs));
+        sbUrl.searchParams.set('wait', String(config.scrapingBeeOptions.wait));
+        sbUrl.searchParams.set('block_resources', String(config.scrapingBeeOptions.blockResources));
+        sbUrl.searchParams.set('block_ads', String(config.scrapingBeeOptions.blockAds));
+        sbUrl.searchParams.set('country_code', config.scrapingBeeOptions.countryCode);
+        sbUrl.searchParams.set('premium_proxy', 'true');
+        sbUrl.searchParams.set('wait_browser', 'load');
+        
+        const response = await fetch(sbUrl.toString());
+        
+        if (response.status === 500) {
+          console.log(`⚠️ Got HTTP 500, retries left: ${retries}`);
+          if (retries > 0) {
+            retries--;
+            await new Promise(r => setTimeout(r, 2000));
+            continue;
+          }
+          const errorText = await response.text();
+          console.error(`❌ HTTP 500 after retries: ${errorText}`);
+          break; // Try next query variation
+        }
+        
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error(`❌ HTTP ${response.status}: ${errorText}`);
+          break; // Try next query variation
+        }
+        
+        const html = await response.text();
+        console.log(`✅ Received ${html.length} chars`);
+        
+        const parser = new DOMParser();
+        const doc = parser.parseFromString(html, 'text/html');
+        if (!doc) {
+          break; // Try next query variation
+        }
+        
+        const containers = trySelectAll(doc, config.selectors.containers);
+        if (containers.length === 0) {
+          const bodySnippet = doc.body?.innerHTML?.substring(0, 500).replace(/\s+/g, ' ') || '';
+          console.error(`❌ No containers found. HTML sample: ${bodySnippet}`);
+          break; // Try next query variation
+        }
+        
+        const products: ScrapedProduct[] = [];
+        const normalizedBaseline = normalizeProductName(fullProductName);
+        
+        for (let i = 0; i < Math.min(containers.length, 50); i++) {
+          const container = containers[i];
+          
+          const nameEl = trySelectOne(container, config.selectors.productName);
+          if (!nameEl) continue;
+          
+          const name = nameEl.textContent?.trim();
+          if (!name) continue;
+          
+          const priceEl = trySelectOne(container, config.selectors.price);
+          if (!priceEl) continue;
+          
+          const priceText = priceEl.textContent?.trim();
+          if (!priceText) continue;
+          
+          const extracted = extractPrice(priceText, currency);
+          if (!extracted || extracted.price <= 0) continue;
+          
+          const normalizedCompetitor = normalizeProductName(name);
+          const similarity = calculateSimilarity(normalizedBaseline, normalizedCompetitor);
+          const priceRatio = extracted.price / baselinePrice;
+          
+          let adjustedSimilarity = similarity;
+          if (priceRatio < 0.2 || priceRatio > 5.0) {
+            adjustedSimilarity = similarity * 0.5;
+          } else if (priceRatio < 0.4 || priceRatio > 2.5) {
+            adjustedSimilarity = similarity * 0.8;
+          }
+          
+          // Try to extract product URL
+          let productUrl: string | undefined;
+          try {
+            const linkEl = container.querySelector('a[href]');
+            if (linkEl) {
+              const href = linkEl.getAttribute('href');
+              if (href) {
+                productUrl = href.startsWith('http') ? href : new URL(href, config.searchUrl).href;
+              }
+            }
+          } catch (e) {
+            // Ignore URL extraction errors
+          }
+          
+          products.push({
+            name,
+            price: extracted.price,
+            similarity: adjustedSimilarity,
+            priceRatio,
+            url: productUrl
+          });
+          
+          if (i < 5) {
+            console.log(`   [${i}] "${name.substring(0, 50)}..."`);
+            console.log(`       Similarity: ${(adjustedSimilarity * 100).toFixed(0)}%, Price: ${extracted.price}, Ratio: ${priceRatio.toFixed(2)}x`);
+          }
+        }
+        
+        console.log(`   Extracted ${products.length} products`);
+        
+        if (products.length > 0) {
+          // Found products, add to collection
+          allProducts = allProducts.concat(products);
+          console.log(`✓ Query variation ${queryIndex + 1} found ${products.length} products`);
+          break; // Exit retry loop
+        } else {
+          console.log(`   Debug: Found ${containers.length} containers but extracted 0 products`);
+          break; // Try next query variation
+        }
+        
+      } catch (error: any) {
+        lastError = error;
         if (retries > 0) {
+          console.log(`⚠️ Error, retrying... (${retries} left)`);
           retries--;
           await new Promise(r => setTimeout(r, 2000));
           continue;
         }
-        const errorText = await response.text();
-        console.error(`❌ HTTP 500 after retries: ${errorText}`);
-        return [];
-      }
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error(`❌ HTTP ${response.status}: ${errorText}`);
-        return [];
-      }
-      
-      const html = await response.text();
-    console.log(`✅ Received ${html.length} chars`);
-    
-    const parser = new DOMParser();
-    const doc = parser.parseFromString(html, 'text/html');
-    if (!doc) return [];
-    
-    const containers = trySelectAll(doc, config.selectors.containers);
-    if (containers.length === 0) {
-      console.error(`❌ No containers found`);
-      return [];
-    }
-    
-    const products: ScrapedProduct[] = [];
-    const normalizedBaseline = normalizeProductName(fullProductName);
-    
-    for (let i = 0; i < Math.min(containers.length, 50); i++) {
-      const container = containers[i];
-      
-      const nameEl = trySelectOne(container, config.selectors.productName);
-      if (!nameEl) continue;
-      
-      const name = nameEl.textContent?.trim();
-      if (!name) continue;
-      
-      const priceEl = trySelectOne(container, config.selectors.price);
-      if (!priceEl) continue;
-      
-      const priceText = priceEl.textContent?.trim();
-      if (!priceText) continue;
-      
-      const extracted = extractPrice(priceText, currency);
-      if (!extracted || extracted.price <= 0) continue;
-      
-      const normalizedCompetitor = normalizeProductName(name);
-      const similarity = calculateSimilarity(normalizedBaseline, normalizedCompetitor);
-      const priceRatio = extracted.price / baselinePrice;
-      
-      let adjustedSimilarity = similarity;
-      if (priceRatio < 0.2 || priceRatio > 5.0) {
-        adjustedSimilarity = similarity * 0.5;
-      } else if (priceRatio < 0.4 || priceRatio > 2.5) {
-        adjustedSimilarity = similarity * 0.8;
-      }
-      
-      // Try to extract product URL
-      let productUrl: string | undefined;
-      try {
-        const linkEl = container.querySelector('a[href]');
-        if (linkEl) {
-          const href = linkEl.getAttribute('href');
-          if (href) {
-            productUrl = href.startsWith('http') ? href : new URL(href, config.searchUrl).href;
-          }
-        }
-      } catch (e) {
-        // Ignore URL extraction errors
-      }
-      
-      // ✅ NO FILTERING - Store everything!
-      products.push({
-        name,
-        price: extracted.price,
-        similarity: adjustedSimilarity,
-        priceRatio,
-        url: productUrl
-      });
-      
-      if (i < 5) {
-        console.log(`   [${i}] "${name.substring(0, 50)}..."`);
-        console.log(`       Similarity: ${(adjustedSimilarity * 100).toFixed(0)}%, Price: ${extracted.price}, Ratio: ${priceRatio.toFixed(2)}x`);
+        console.error(`❌ Error after retries:`, error.message);
+        break; // Try next query variation
       }
     }
     
-    console.log(`   Extracted ${products.length} products`);
-    if (products.length === 0) {
-      console.log(`   Debug: Found ${containers.length} containers but extracted 0 products`);
-    }
-    
-    // Sort by similarity DESC, keep top 20
-    return products
-      .sort((a, b) => b.similarity - a.similarity)
-      .slice(0, 20);
-    
-    } catch (error: any) {
-      lastError = error;
-      if (retries > 0) {
-        console.log(`⚠️ Error, retrying... (${retries} left)`);
-        retries--;
-        await new Promise(r => setTimeout(r, 2000));
-        continue;
-      }
-      console.error(`❌ Error after retries:`, error.message);
-      return [];
+    // If we got products from this query, stop trying variations
+    if (allProducts.length > 0) {
+      break;
     }
   }
   
-  return [];
+  // Sort by similarity DESC, keep top 20
+  return allProducts
+    .sort((a, b) => b.similarity - a.similarity)
+    .slice(0, 20);
 }
 
 // ========================================
@@ -1323,13 +1504,30 @@ serve(async (req) => {
       }
       
       try {
-        // ✅ Use Google SERP API instead of regular scraping
-        let googleProducts = await scrapeGoogleSERP(
+        // ✅ Try both Google Shopping and Google SERP
+        let googleProducts: ScrapedProduct[] = [];
+        
+        // First try Google Shopping (more product-focused)
+        const shoppingProducts = await scrapeGoogleShopping(
           coreProductName,
           baseline.current_price,
           baseline.currency,
           baseline.product_name
         );
+        
+        if (shoppingProducts.length > 0) {
+          console.log(`✓ Google Shopping found ${shoppingProducts.length} products`);
+          googleProducts = shoppingProducts;
+        } else {
+          // Fallback to regular Google SERP
+          console.log(`⚠️ Google Shopping returned 0, trying regular SERP...`);
+          googleProducts = await scrapeGoogleSERP(
+            coreProductName,
+            baseline.current_price,
+            baseline.currency,
+            baseline.product_name
+          );
+        }
         
         // Apply accessory filtering
         if (!baselineIsAccessory && googleProducts.length > 0) {
