@@ -289,8 +289,8 @@ function calculateWeightedMarketStats(
     };
   }
   
-  // 🆕 FILTER BY SIMILARITY - Only use products with similarity > 0.3 (30%)
-  const filteredProducts = products.filter(p => p.similarity_score > 0.3);
+  // 🆕 FILTER BY SIMILARITY - Only use products with similarity > 0.6 (60%)
+  const filteredProducts = products.filter(p => p.similarity_score > 0.6);
   
   console.log(`🔍 Similarity filtering: ${products.length} → ${filteredProducts.length} products (removed ${products.length - filteredProducts.length} low-similarity matches)`);
   
@@ -451,7 +451,7 @@ async function calculateOptimalPrice(
     .from('competitor_products')
     .select('price, similarity_score, price_ratio, marketplace')
     .eq('baseline_id', baseline.id)
-    .gte('similarity_score', 0.3); // Only products with > 30% similarity
+    .gte('similarity_score', 0.6); // Only products with > 60% similarity
   
   console.log(`Found ${competitorProducts?.length || 0} competitor products`);
   

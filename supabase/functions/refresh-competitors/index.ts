@@ -586,8 +586,18 @@ function isAccessoryOrReplacement(productName: string): boolean {
     // Cables & adapters
     'cable', 'cord', 'wire', 'adapter', 'charger', 'charging cable',
     
+    // Screen protectors & films
+    'screen protector', 'protector', 'tempered glass', 'glass film', 'film',
+    'lens protector', 'camera protector', 'privacy screen',
+    'screen guard', 'guard', 'shield',
+    
+    // Additional accessories
+    'stand', 'mount', 'holder', 'strap', 'skin', 'sticker', 'decal',
+    
     // Sets/pieces (not full product)
-    'pcs', 'pieces', 'pair', 'set of', 'pack of', '2pcs', '3pcs', '4pcs',
+    'pcs', 'pieces', 'pair', 'set of', 'pack of', 
+    '2 pack', '3 pack', '4 pack', '2-pack', '3-pack', '4-pack',
+    '2pcs', '3pcs', '4pcs',
     
     // Arabic
     'قطع غيار', 'قطع', 'غيار', 'بديل', 'حافظة', 'كفر', 'غطاء', 'وسادة', 'كابل'
@@ -595,6 +605,77 @@ function isAccessoryOrReplacement(productName: string): boolean {
   
   const lowerName = productName.toLowerCase();
   return accessoryKeywords.some(keyword => lowerName.includes(keyword));
+}
+
+// ========================================
+// MODEL NUMBER VALIDATION FOR ELECTRONICS
+// ========================================
+
+/**
+ * Extract model information from product name
+ * Used to filter out wrong product versions (e.g., iPhone 13 vs iPhone 17)
+ */
+function extractModelInfo(productName: string): { 
+  brand: string; 
+  model: string; 
+  version: number | null 
+} {
+  const lowerName = productName.toLowerCase();
+  
+  // iPhone detection: "iPhone 17 Pro Max" → { brand: "iphone", model: "pro max", version: 17 }
+  const iphoneMatch = lowerName.match(/iphone\s*(\d+)\s*(pro\s*max|pro|plus|mini)?/i);
+  if (iphoneMatch) {
+    return {
+      brand: 'iphone',
+      model: (iphoneMatch[2] || 'standard').toLowerCase().replace(/\s+/g, ' ').trim(),
+      version: parseInt(iphoneMatch[1])
+    };
+  }
+  
+  // Samsung Galaxy detection: "Galaxy S24 Ultra" → { brand: "galaxy", model: "s ultra", version: 24 }
+  const galaxyMatch = lowerName.match(/galaxy\s*([sza])(\d+)\s*(ultra|plus|fe)?/i);
+  if (galaxyMatch) {
+    return {
+      brand: 'galaxy',
+      model: `${galaxyMatch[1]}${galaxyMatch[3] || ''}`.toLowerCase().replace(/\s+/g, ' ').trim(),
+      version: parseInt(galaxyMatch[2])
+    };
+  }
+  
+  // Add more brands as needed...
+  
+  return { brand: '', model: '', version: null };
+}
+
+/**
+ * Check if two products have mismatched model numbers
+ * Returns TRUE if they are different models (should be filtered out)
+ */
+function isModelMismatch(baselineProduct: string, competitorProduct: string): boolean {
+  const baseline = extractModelInfo(baselineProduct);
+  const competitor = extractModelInfo(competitorProduct);
+  
+  // If both are iPhones, version must match
+  if (baseline.brand === 'iphone' && competitor.brand === 'iphone') {
+    if (baseline.version !== null && competitor.version !== null) {
+      const versionMatch = baseline.version === competitor.version;
+      if (!versionMatch) {
+        return true; // MISMATCH: Different iPhone versions
+      }
+    }
+  }
+  
+  // If both are Galaxy phones, version must match
+  if (baseline.brand === 'galaxy' && competitor.brand === 'galaxy') {
+    if (baseline.version !== null && competitor.version !== null) {
+      const versionMatch = baseline.version === competitor.version;
+      if (!versionMatch) {
+        return true; // MISMATCH: Different Galaxy versions
+      }
+    }
+  }
+  
+  return false; // No mismatch detected
 }
 
 // ========================================
@@ -892,6 +973,19 @@ serve(async (req) => {
             return !isAccessory;
           });
           console.log(`🔍 Filtering: ${beforeFilter} products → ${products.length} products (removed ${beforeFilter - products.length} accessories)`);
+        }
+        
+        // 🆕 FILTER MODEL MISMATCHES for electronics
+        if (baseline.category === 'Electronics & Technology' && products.length > 0) {
+          const beforeModelFilter = products.length;
+          products = products.filter(product => {
+            const isMismatch = isModelMismatch(baseline.product_name, product.name);
+            if (isMismatch) {
+              console.log(`⏭️ Filtered model mismatch: "${product.name.slice(0, 60)}..."`);
+            }
+            return !isMismatch;
+          });
+          console.log(`🔍 Model filtering: ${beforeModelFilter} products → ${products.length} products (removed ${beforeModelFilter - products.length} wrong models)`);
         }
         
         if (products.length > 0) {
