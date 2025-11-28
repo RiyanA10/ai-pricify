@@ -100,13 +100,17 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.noon.com/saudi-en/search?q=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 5000,
+      wait: 7000,  // ← Increased for heavy JS
       blockResources: false,
       blockAds: true,
       countryCode: 'sa'
     },
     selectors: {
       containers: [
+        'div[data-qa="product-card"]',           // ← Primary Noon selector
+        'div[class*="productCard"]',
+        'div[class*="ProductCard_"]',
+        '[data-testid="search-product-item"]',
         'div[data-component="ProductBox"]',
         'div[data-qa-id="grid-view-item"]',
         'article[data-component]',
@@ -119,20 +123,25 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
         'article'
       ],
       productName: [
+        '[data-qa="product-title"]',             // ← Primary Noon selector
+        'span[class*="productTitle"]',
+        'h2[class*="title"]',
         '[data-qa="product-name"]',
         'div[class*="productTitle"]',
         'h3[class*="productTitle"]',
-        'h2[class*="title"]',
         'span[data-qa="product-name"]',
         '[class*="title"]',
         '.productContainer h2'
       ],
       price: [
+        '[data-qa="product-price"] span',        // ← Primary Noon selector
+        'span[class*="priceNow"]',
+        'span[class*="Price_now"]',
+        'strong[class*="amount"]',
         '[data-qa="product-price"]',
         'div[class*="price"] strong',
         'span[class*="price"]',
         '[class*="priceNow"]',
-        'strong[class*="amount"]',
         'strong',
         '.sellingPrice'
       ]
@@ -143,13 +152,18 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.extra.com/en-sa/search?q=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 6000,
+      wait: 8000,  // ← Increased for heavy JS SPA
       blockResources: false,
       blockAds: true,
       countryCode: 'sa'
     },
     selectors: {
       containers: [
+        'div[data-qa="product-tile"]',           // ← Primary Extra selector
+        'div.product-tile',
+        'div[class*="ProductTile_"]',
+        '.product-list div[class*="product"]',
+        'div[data-testid="search-result-item"]',
         'div[data-product-code]',
         'div.product-listing__item',
         'div[class*="product-list-item"]',
@@ -160,12 +174,12 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
         'div[class*="ProductTile"]',
         'div[data-testid="product-tile"]',
         'article[class*="product"]',
-        'div.product-tile',
         'li[class*="product"]',
         'div.product-item',
         'div.product-card'
       ],
       productName: [
+        '[data-qa="product-name"]',              // ← Primary Extra selector
         'a[data-testid="product-name"]',
         'div[class*="product-name"] a',
         '.product-listing__title',
@@ -181,6 +195,7 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
         '.product-name'
       ],
       price: [
+        '[data-qa="product-price"]',             // ← Primary Extra selector
         'span[data-testid="product-price"]',
         '.product-listing__price span',
         'span[class*="price--current"]',
@@ -786,6 +801,7 @@ async function scrapeGoogleSERP(
     const sbUrl = new URL('https://app.scrapingbee.com/api/v1/');
     sbUrl.searchParams.set('api_key', scrapingbeeApiKey);
     sbUrl.searchParams.set('url', googleSearchUrl);
+    sbUrl.searchParams.set('custom_google', 'true');  // ← CRITICAL: Required by ScrapingBee for Google
     sbUrl.searchParams.set('stealth_proxy', 'true');  // ← Critical for bypassing bot detection
     sbUrl.searchParams.set('render_js', 'true');
     sbUrl.searchParams.set('wait', '3000');
@@ -912,6 +928,7 @@ async function scrapeGoogleShopping(
     const sbUrl = new URL('https://app.scrapingbee.com/api/v1/');
     sbUrl.searchParams.set('api_key', scrapingbeeApiKey);
     sbUrl.searchParams.set('url', shoppingUrl);
+    sbUrl.searchParams.set('custom_google', 'true');  // ← CRITICAL: Required by ScrapingBee for Google
     sbUrl.searchParams.set('stealth_proxy', 'true');  // ← Critical!
     sbUrl.searchParams.set('render_js', 'true');
     sbUrl.searchParams.set('wait', '5000');  // Shopping needs more time
@@ -1071,6 +1088,14 @@ async function scrapeMarketplacePrices(
         sbUrl.searchParams.set('premium_proxy', 'true');
         sbUrl.searchParams.set('wait_browser', 'load');
         
+        // ✅ Add wait_for selector for JS-heavy marketplaces
+        if (config.name === 'Extra') {
+          sbUrl.searchParams.set('wait_for', 'div.product-tile,div[data-qa="product-tile"]');
+        }
+        if (config.name === 'Noon') {
+          sbUrl.searchParams.set('wait_for', 'div[data-qa="product-card"]');
+        }
+        
         const response = await fetch(sbUrl.toString());
         
         if (response.status === 500) {
@@ -1102,8 +1127,14 @@ async function scrapeMarketplacePrices(
         
         const containers = trySelectAll(doc, config.selectors.containers);
         if (containers.length === 0) {
-          const bodySnippet = doc.body?.innerHTML?.substring(0, 500).replace(/\s+/g, ' ') || '';
-          console.error(`❌ No containers found. HTML sample: ${bodySnippet}`);
+          // ✅ Enhanced debug logging
+          const fullBodySnippet = doc.body?.innerHTML?.substring(0, 2000).replace(/\s+/g, ' ') || '';
+          const bodyText = doc.body?.textContent?.toLowerCase() || '';
+          console.error(`❌ No containers found for ${config.name}`);
+          console.log(`   HTML length: ${doc.body?.innerHTML?.length || 0} chars`);
+          console.log(`   Has "product" keyword: ${bodyText.includes('product')}`);
+          console.log(`   Has "price" keyword: ${bodyText.includes('price')}`);
+          console.log(`   HTML sample: ${fullBodySnippet}`);
           break; // Try next query variation
         }
         
