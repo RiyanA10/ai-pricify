@@ -96,16 +96,49 @@ serve(async (req) => {
 
         console.log('Triggering competitor scraping...');
         
-        const { error: refreshError } = await supabase.functions.invoke(
-          'refresh-competitors',
-          { body: { baseline_id } }
-        );
+        // FIX 1: Retry logic with exponential backoff for refresh-competitors
+        let refreshSuccess = false;
+        let refreshRetries = 3;
+        let lastRefreshError: any = null;
+        
+        while (!refreshSuccess && refreshRetries > 0) {
+          try {
+            const { data, error: refreshError } = await supabase.functions.invoke(
+              'refresh-competitors',
+              { body: { baseline_id } }
+            );
 
-        if (refreshError) {
-          console.error('Error calling refresh-competitors:', refreshError);
-        } else {
-          console.log('✅ Competitor scraping completed');
+            if (refreshError) {
+              lastRefreshError = refreshError;
+              console.error(`❌ refresh-competitors error (attempt ${4 - refreshRetries}/3):`, refreshError);
+              refreshRetries--;
+              if (refreshRetries > 0) {
+                const waitTime = (4 - refreshRetries) * 3000; // 3s, 6s, 9s backoff
+                console.log(`⏳ Waiting ${waitTime}ms before retry...`);
+                await new Promise(r => setTimeout(r, waitTime));
+              }
+            } else {
+              refreshSuccess = true;
+              console.log('✅ Competitor scraping completed successfully');
+            }
+          } catch (e: any) {
+            lastRefreshError = e;
+            console.error(`❌ refresh-competitors exception (attempt ${4 - refreshRetries}/3):`, e.message);
+            refreshRetries--;
+            if (refreshRetries > 0) {
+              const waitTime = (4 - refreshRetries) * 3000;
+              console.log(`⏳ Waiting ${waitTime}ms before retry...`);
+              await new Promise(r => setTimeout(r, waitTime));
+            }
+          }
         }
+        
+        if (!refreshSuccess) {
+          console.log('⚠️ Competitor scraping failed after 3 attempts, proceeding with existing data');
+        }
+        
+        // Wait a moment for database writes to settle
+        await new Promise(r => setTimeout(r, 1000));
 
         await supabase.from('processing_status')
           .update({ current_step: 'calculating_price' })
