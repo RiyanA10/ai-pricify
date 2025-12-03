@@ -67,7 +67,7 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.amazon.sa/s?k=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 3000,  // Reduced from 6000
+      wait: 6000,  // Restored original wait time
       blockResources: false,
       blockAds: true,
       countryCode: 'sa'
@@ -100,7 +100,7 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.noon.com/saudi-en/search?q=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 3500,  // Reduced from 7000
+      wait: 7000,  // Restored original wait time
       blockResources: false,
       blockAds: true,
       countryCode: 'sa'
@@ -162,7 +162,7 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.extra.com/en-sa/search?q=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 4000,  // Reduced from 8000
+      wait: 8000,  // Restored original wait time
       blockResources: false,
       blockAds: true,
       countryCode: 'sa'
@@ -239,7 +239,7 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.jarir.com/sa-en/catalogsearch/result/?q=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 3500,  // Reduced from 6000
+      wait: 5000,  // Restored original wait time
       blockResources: false,
       blockAds: true,
       countryCode: 'sa'
@@ -575,20 +575,25 @@ function extractPrice(text: string, expectedCurrency: string, productName?: stri
   
   text = text.replace(/from|as low as|starting at|save|off|each|per|month|\/mo/gi, '').trim();
   
-  // FIX 1: Check for model numbers to exclude from price extraction
-  // If productName is provided, extract model numbers to avoid matching them as prices
+  // FIX 1: Extract storage sizes from product name to exclude from price extraction
+  // e.g., "Samsung Galaxy S24 Ultra 256GB" → exclude "256" as a price candidate
+  const storageSizesToExclude: Set<string> = new Set();
   const modelNumbersToExclude: Set<string> = new Set();
+  
   if (productName) {
-    // Extract numbers that are part of model names (e.g., "16" from "iPhone 16", "24" from "S24")
+    // Extract storage sizes (256GB, 512GB, 1TB, etc.)
+    const storagePattern = /(\d+)\s*(?:GB|TB)/gi;
+    let storageMatch;
+    while ((storageMatch = storagePattern.exec(productName)) !== null) {
+      storageSizesToExclude.add(storageMatch[1]);
+      console.log(`   🚫 Excluding storage size from prices: ${storageMatch[1]}`);
+    }
+    
+    // Extract model numbers (e.g., "16" from "iPhone 16", "24" from "S24")
     const modelPatterns = [
       /iphone\s*(\d+)/gi,
       /galaxy\s*[sza]?(\d+)/gi,
       /pixel\s*(\d+)/gi,
-      /pro\s*(\d+)/gi,
-      /max\s*(\d+)/gi,
-      /mini\s*(\d+)/gi,
-      /plus\s*(\d+)/gi,
-      /air\s*(\d+)/gi,
       /(\d+)\s*(?:pro|max|mini|plus|ultra)/gi,
     ];
     
@@ -617,14 +622,19 @@ function extractPrice(text: string, expectedCurrency: string, productName?: stri
       const priceStr = match[1].replace(/,/g, '');
       const price = parseFloat(priceStr);
       
+      // FIX 1: Skip if this number is a storage size (256, 512, 128, 1024, etc.)
+      if (storageSizesToExclude.has(priceStr)) {
+        console.log(`   ⏭️ Skipping storage size as price: ${priceStr}`);
+        continue;
+      }
+      
       // FIX 1: Skip if this number is a model number
       if (modelNumbersToExclude.has(priceStr)) {
         continue;
       }
       
-      // FIX 1: Minimum price threshold - reject prices below 100 (likely model numbers)
-      // For context: iPhones cost 3000+ SAR, so "16" is clearly wrong
-      if (price < 100) {
+      // Skip very small numbers that are likely not prices (model numbers, quantities)
+      if (price < 50) {
         continue;
       }
       
@@ -865,6 +875,40 @@ interface ScrapedProduct {
 // FIX 2: EXTRACT STORE NAME FROM URL
 // ========================================
 
+// FIX 3: Non-retailer domains to exclude (specs sites, official brand sites, reviews)
+const NON_RETAILER_DOMAINS = [
+  'gsmarena.com',      // Specs/reviews site
+  'samsung.com',       // Official brand site (not marketplace)
+  'apple.com',         // Official brand site
+  'phonearena.com',    // Reviews
+  'techradar.com',     // Reviews
+  'cnet.com',          // Reviews
+  'youtube.com',       // Videos
+  'wikipedia.org',     // Info
+  'reddit.com',        // Forum
+  'twitter.com',       // Social
+  'facebook.com',      // Social
+  'instagram.com',     // Social
+  'tiktok.com',        // Social
+  'quora.com',         // Q&A
+  'alibaba.com',       // Wholesale (not retail)
+  'aliexpress.com',    // Ships from China (not local)
+  'made-in-china.com', // Wholesale
+];
+
+/**
+ * Check if URL is from a non-retailer domain
+ */
+function isNonRetailerDomain(url: string): boolean {
+  if (!url) return false;
+  try {
+    const hostname = new URL(url).hostname.toLowerCase();
+    return NON_RETAILER_DOMAINS.some(domain => hostname.includes(domain));
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Extract store/provider name from product URL
  * e.g., https://www.noon.com/product/123 → "Noon"
@@ -1015,6 +1059,12 @@ async function scrapeGoogleSERP(
             productUrl = href;
             // FIX 2: Extract store name from URL
             sourceStore = extractStoreFromUrl(href);
+            
+            // FIX 3: Skip non-retailer domains (GSMarena, Samsung.com, etc.)
+            if (isNonRetailerDomain(href)) {
+              console.log(`   ⏭️ Skipping non-retailer: ${sourceStore}`);
+              continue;
+            }
           }
         }
       } catch (e) {
@@ -1149,9 +1199,16 @@ async function scrapeGoogleShopping(
         if (linkEl) {
           const href = linkEl.getAttribute('href');
           if (href) {
-            productUrl = href.startsWith('http') ? href : `https://www.google.com${href}`;
+            const fullUrl = href.startsWith('http') ? href : `https://www.google.com${href}`;
+            productUrl = fullUrl;
             // FIX 2: Extract store name from URL
-            sourceStore = extractStoreFromUrl(productUrl || '');
+            sourceStore = extractStoreFromUrl(fullUrl);
+            
+            // FIX 3: Skip non-retailer domains (GSMarena, Samsung.com, etc.)
+            if (isNonRetailerDomain(fullUrl)) {
+              console.log(`   ⏭️ Skipping non-retailer: ${sourceStore}`);
+              continue;
+            }
           }
         }
       } catch (e) {
@@ -1692,13 +1749,13 @@ serve(async (req) => {
           });
           
           // Insert each product into competitor_products table
-          // FIX 2: For google-shopping, use sourceStore as marketplace if available
+          // FIX 2: Use actual store name, not "google-shopping (StoreName)"
           const productRows = products.map((product, index) => ({
             baseline_id,
             merchant_id: baseline.merchant_id,
-            marketplace: marketplaceKey === 'google-shopping' && product.sourceStore 
-              ? `google-shopping (${product.sourceStore})` 
-              : marketplaceKey,
+            marketplace: marketplaceKey === 'google-shopping' && product.sourceStore && product.sourceStore !== 'Unknown'
+              ? product.sourceStore  // Just "Noon", not "google-shopping (Noon)"
+              : marketplaceKey === 'google-shopping' ? 'Google' : marketplaceKey,
             product_name: product.name,
             price: product.price,
             similarity_score: product.similarity,
@@ -1881,13 +1938,13 @@ serve(async (req) => {
         }
         
         if (googleProducts.length > 0) {
-          // FIX 2: Include sourceStore in marketplace name for Google results
+          // FIX 2: Use actual store name, not "google-shopping (StoreName)"
           const productRows = googleProducts.map((product, index) => ({
             baseline_id,
             merchant_id: baseline.merchant_id,
-            marketplace: product.sourceStore 
-              ? `google-shopping (${product.sourceStore})` 
-              : 'google-shopping',
+            marketplace: product.sourceStore && product.sourceStore !== 'Unknown'
+              ? product.sourceStore  // Just "Noon", not "google-shopping (Noon)"
+              : 'Google',
             product_name: product.name,
             price: product.price,
             similarity_score: product.similarity,
