@@ -100,14 +100,14 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.noon.com/saudi-en/search?q=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 7000,  // ← Increased for heavy JS
+      wait: 7000,
       blockResources: false,
       blockAds: true,
       countryCode: 'sa'
     },
     selectors: {
       containers: [
-        'div[data-qa="product-card"]',           // ← Primary Noon selector
+        'div[data-qa="product-card"]',
         'div[class*="productCard"]',
         'div[class*="ProductCard_"]',
         '[data-testid="search-product-item"]',
@@ -120,10 +120,13 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
         '.grid > div[class*="product"]',
         'div[class*="ProductBox"]',
         'div[data-qa="product-item"]',
+        // More generic fallbacks
+        'a[href*="/product/"]',
+        'div:has(a[href*="/product/"]):has([class*="price"])',
         'article'
       ],
       productName: [
-        '[data-qa="product-title"]',             // ← Primary Noon selector
+        '[data-qa="product-title"]',
         'span[class*="productTitle"]',
         'h2[class*="title"]',
         '[data-qa="product-name"]',
@@ -131,10 +134,15 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
         'h3[class*="productTitle"]',
         'span[data-qa="product-name"]',
         '[class*="title"]',
-        '.productContainer h2'
+        '.productContainer h2',
+        // Generic fallbacks
+        'a[href*="/product/"] span',
+        'div > a:first-child',
+        'h2', 'h3', 'h4',
+        '[class*="name"]'
       ],
       price: [
-        '[data-qa="product-price"] span',        // ← Primary Noon selector
+        '[data-qa="product-price"] span',
         'span[class*="priceNow"]',
         'span[class*="Price_now"]',
         'strong[class*="amount"]',
@@ -142,6 +150,8 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
         'div[class*="price"] strong',
         'span[class*="price"]',
         '[class*="priceNow"]',
+        // Generic fallbacks
+        '[class*="price"] span:first-child',
         'strong',
         '.sellingPrice'
       ]
@@ -152,14 +162,14 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.extra.com/en-sa/search?q=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 8000,  // ← Increased for heavy JS SPA
+      wait: 8000,
       blockResources: false,
       blockAds: true,
       countryCode: 'sa'
     },
     selectors: {
       containers: [
-        'div[data-qa="product-tile"]',           // ← Primary Extra selector
+        'div[data-qa="product-tile"]',
         'div.product-tile',
         'div[class*="ProductTile_"]',
         '.product-list div[class*="product"]',
@@ -176,10 +186,13 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
         'article[class*="product"]',
         'li[class*="product"]',
         'div.product-item',
-        'div.product-card'
+        'div.product-card',
+        // Generic fallbacks
+        'a[href*="/product/"]',
+        'div:has(a[href]):has([class*="price"])'
       ],
       productName: [
-        '[data-qa="product-name"]',              // ← Primary Extra selector
+        '[data-qa="product-name"]',
         'a[data-testid="product-name"]',
         'div[class*="product-name"] a',
         '.product-listing__title',
@@ -192,10 +205,15 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
         'div[class*="productName"]',
         'h3 a',
         '.product-title',
-        '.product-name'
+        '.product-name',
+        // Generic fallbacks
+        'a[href*="/product/"]',
+        'h2 a', 'h3 a',
+        '[class*="title"] a',
+        '[class*="name"]'
       ],
       price: [
-        '[data-qa="product-price"]',             // ← Primary Extra selector
+        '[data-qa="product-price"]',
         'span[data-testid="product-price"]',
         '.product-listing__price span',
         'span[class*="price--current"]',
@@ -209,7 +227,10 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
         'strong[class*="price"]',
         '.price',
         '.special-price',
-        '.final-price'
+        '.final-price',
+        // Generic fallbacks
+        '[class*="price"]:not([class*="was"])',
+        'strong'
       ]
     }
   },
@@ -226,35 +247,41 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     selectors: {
       containers: [
         // Primary - Magento-based selectors
-        '.product-items .product-item',           // Magento standard
-        '.products.list .product-item',           // List view
-        'li.product-item',                        // List item
-        'div.product-item-info',                  // Item info wrapper
+        '.product-items .product-item',
+        '.products.list .product-item',
+        'li.product-item',
+        'div.product-item-info',
         // Fallback - generic
         'div.products-grid .item',
         'ol.products.list .item',
         'div[data-product-sku]',
         'article.product',
+        // Generic fallbacks
+        'a[href*="/product/"]',
+        'div:has(a[href]):has(.price)',
         'div[class*="product"]'
       ],
       productName: [
         // Magento standard
-        '.product-item-info .product-item-link',  // Primary link
-        'a.product-item-link',                    // Direct link
-        '.product-item-name a',                   // Name wrapper
-        '.product.name a',                        // Name in product
+        '.product-item-info .product-item-link',
+        'a.product-item-link',
+        '.product-item-name a',
+        '.product.name a',
         // Fallback
         'h2.product-name a',
         'span.product-item-link',
         'a[class*="product-name"]',
-        '.product-title'
+        '.product-title',
+        // Generic fallbacks
+        'a[href*="/product/"]',
+        'h2 a', 'h3 a'
       ],
       price: [
         // Magento standard
-        '.price-box .price',                      // Primary price box
-        'span[data-price-amount]',                // Data attribute
-        '[data-price-type="finalPrice"] .price',  // Final price
-        '.price-wrapper .price',                  // Wrapper
+        '.price-box .price',
+        'span[data-price-amount]',
+        '[data-price-type="finalPrice"] .price',
+        '.price-wrapper .price',
         // Fallback
         '.price-final_price .price',
         'span.price',
@@ -263,7 +290,10 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
         'span[data-price-type="finalPrice"]',
         'span.special-price span.price',
         '.final-price',
-        '.sale-price'
+        '.sale-price',
+        // Generic fallbacks
+        '[class*="price"] span',
+        'strong'
       ]
     }
   },
@@ -1141,20 +1171,70 @@ async function scrapeMarketplacePrices(
         const products: ScrapedProduct[] = [];
         const normalizedBaseline = normalizeProductName(fullProductName);
         
-        for (let i = 0; i < Math.min(containers.length, 50); i++) {
-          const container = containers[i];
+        // Container validation - filter to containers that likely have product data
+        const validContainers = containers.filter((container: any) => {
+          const hasLink = container.querySelector('a[href]');
+          const containerText = container.textContent || '';
+          const hasEnoughText = containerText.length > 20;
+          const hasPricePattern = /\d{3,}/.test(containerText);
+          return hasLink && hasEnoughText && hasPricePattern;
+        });
+        
+        const containersToProcess = validContainers.length >= 3 ? validContainers : containers;
+        console.log(`   📦 Processing ${containersToProcess.length} containers (validated: ${validContainers.length}/${containers.length})`);
+        
+        let debuggedContainers = 0;
+        
+        for (let i = 0; i < Math.min(containersToProcess.length, 50); i++) {
+          const container = containersToProcess[i];
           
-          const nameEl = trySelectOne(container, config.selectors.productName);
-          if (!nameEl) continue;
+          // Try CSS selectors first
+          let nameEl = trySelectOne(container, config.selectors.productName);
+          let name = nameEl?.textContent?.trim();
           
-          const name = nameEl.textContent?.trim();
-          if (!name) continue;
+          // FALLBACK 1: If CSS selectors fail, try generic heading/link text
+          if (!name) {
+            nameEl = container.querySelector('h1, h2, h3, h4, a[title], a[href*="product"]');
+            name = nameEl?.textContent?.trim();
+          }
           
-          const priceEl = trySelectOne(container, config.selectors.price);
-          if (!priceEl) continue;
+          // FALLBACK 2: Try getting text from the first link's title attribute
+          if (!name) {
+            const firstLink = container.querySelector('a[href]');
+            name = firstLink?.getAttribute('title') || firstLink?.textContent?.trim();
+          }
           
-          const priceText = priceEl.textContent?.trim();
-          if (!priceText) continue;
+          if (!name) {
+            if (debuggedContainers < 3) {
+              console.log(`   [${i}] ⚠️ No name found. HTML sample: ${container.innerHTML?.substring(0, 300)}`);
+              debuggedContainers++;
+            }
+            continue;
+          }
+          
+          // Try CSS selectors for price first
+          let priceEl = trySelectOne(container, config.selectors.price);
+          let priceText = priceEl?.textContent?.trim();
+          
+          // FALLBACK: Search entire container text for price pattern (SAR/SR)
+          if (!priceText) {
+            const containerText = container.textContent || '';
+            // Look for SAR price patterns
+            const priceMatch = containerText.match(/(?:SAR|SR|ر\.س\.?)\s*([0-9,]+(?:\.[0-9]{2})?)/i) 
+              || containerText.match(/([0-9,]+(?:\.[0-9]{2})?)\s*(?:SAR|SR|ر\.س)/i)
+              || containerText.match(/\b([0-9]{3,}(?:,[0-9]{3})*(?:\.[0-9]{2})?)\b/);
+            if (priceMatch) {
+              priceText = priceMatch[0];
+            }
+          }
+          
+          if (!priceText) {
+            if (debuggedContainers < 3) {
+              console.log(`   [${i}] ⚠️ No price found for "${name.substring(0, 30)}...". HTML sample: ${container.innerHTML?.substring(0, 300)}`);
+              debuggedContainers++;
+            }
+            continue;
+          }
           
           const extracted = extractPrice(priceText, currency);
           if (!extracted || extracted.price <= 0) continue;
@@ -1206,7 +1286,12 @@ async function scrapeMarketplacePrices(
           console.log(`✓ Query variation ${queryIndex + 1} found ${products.length} products`);
           break; // Exit retry loop
         } else {
-          console.log(`   Debug: Found ${containers.length} containers but extracted 0 products`);
+          // Enhanced debug: show first container's full HTML when no products extracted
+          if (containersToProcess.length > 0) {
+            console.log(`   ❌ Found ${containersToProcess.length} containers but extracted 0 products`);
+            console.log(`   📝 First container HTML sample:`);
+            console.log(containersToProcess[0]?.innerHTML?.substring(0, 500));
+          }
           break; // Try next query variation
         }
         
