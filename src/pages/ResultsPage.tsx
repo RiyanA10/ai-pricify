@@ -213,6 +213,30 @@ Position vs Market,${results.position_vs_market ? results.position_vs_market.toF
   }
 
   const { baseline, results, competitors } = data;
+  
+  // Handle case when pricing results haven't been generated yet
+  if (!results) {
+    return (
+      <div className="min-h-screen bg-gradient-subtle flex items-center justify-center">
+        <Card className="p-8 text-center max-w-md">
+          <p className="text-lg mb-2 font-semibold">Pricing Analysis Pending</p>
+          <p className="text-muted-foreground mb-4">
+            The pricing analysis for "{baseline?.product_name}" hasn't been generated yet.
+          </p>
+          <div className="flex gap-2 justify-center">
+            <Button onClick={() => navigate('/products')} variant="outline">
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Products
+            </Button>
+            <Button onClick={() => navigate(`/processing/${baselineId}`)}>
+              Go to Processing
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   const priceChange = ((results.suggested_price - baseline.current_price) / baseline.current_price) * 100;
   const isPriceIncrease = priceChange > 0;
   
