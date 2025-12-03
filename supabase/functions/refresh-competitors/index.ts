@@ -36,7 +36,7 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.google.com/search?tbm=shop&q=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 3000,
+      wait: 2500,  // Reduced from 3000
       blockResources: true,
       blockAds: true,
       countryCode: 'us'
@@ -67,7 +67,7 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.amazon.sa/s?k=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 6000,
+      wait: 3000,  // Reduced from 6000
       blockResources: false,
       blockAds: true,
       countryCode: 'sa'
@@ -100,7 +100,7 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.noon.com/saudi-en/search?q=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 7000,
+      wait: 3500,  // Reduced from 7000
       blockResources: false,
       blockAds: true,
       countryCode: 'sa'
@@ -162,7 +162,7 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.extra.com/en-sa/search?q=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 8000,
+      wait: 4000,  // Reduced from 8000
       blockResources: false,
       blockAds: true,
       countryCode: 'sa'
@@ -239,7 +239,7 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.jarir.com/sa-en/catalogsearch/result/?q=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 6000,
+      wait: 3500,  // Reduced from 6000
       blockResources: false,
       blockAds: true,
       countryCode: 'sa'
@@ -302,7 +302,7 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.amazon.com/s?k=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 6000,
+      wait: 3000,  // Reduced from 6000
       blockResources: false,
       blockAds: true,
       countryCode: 'us'
@@ -335,7 +335,7 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.walmart.com/search?q=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 6000,
+      wait: 3500,  // Reduced from 6000
       blockResources: false,
       blockAds: true,
       countryCode: 'us'
@@ -367,7 +367,7 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.ebay.com/sch/i.html?_nkw=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 6000,
+      wait: 3000,  // Reduced from 6000
       blockResources: false,
       blockAds: true,
       countryCode: 'us'
@@ -398,7 +398,7 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.target.com/s?searchTerm=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 6000,
+      wait: 3500,  // Reduced from 6000
       blockResources: false,
       blockAds: true,
       countryCode: 'us'
@@ -1095,43 +1095,37 @@ async function scrapeMarketplacePrices(
     return [];
   }
   
-  // FIX 2: Improved search query strategy with more variations
+  // FIX 2: Limit query variations to 2 for speed
   const searchQueries: string[] = [];
   
   // Original query
   searchQueries.push(productName);
   
-  // For iPhones: try without storage size first (broader results)
+  // For iPhones: try without storage size (broader results)
   const lowerName = productName.toLowerCase();
   if (lowerName.includes('iphone')) {
-    // "iPhone 16 Pro Max 256GB" -> "iPhone 16 Pro Max"
     const withoutStorage = productName.replace(/\s*\d+\s*(?:gb|GB|tb|TB)/gi, '').trim();
     if (withoutStorage !== productName) {
       searchQueries.push(withoutStorage);
     }
-    // Also try with "Apple" prefix
-    searchQueries.push(`Apple ${withoutStorage}`);
+  } else {
+    // Shorter version (first 4 words) for non-iPhones
+    const shorterQuery = productName.split(' ').slice(0, 4).join(' ');
+    if (shorterQuery !== productName) {
+      searchQueries.push(shorterQuery);
+    }
   }
   
-  // Shorter version (first 4 words)
-  const shorterQuery = productName.split(' ').slice(0, 4).join(' ');
-  if (!searchQueries.includes(shorterQuery)) {
-    searchQueries.push(shorterQuery);
-  }
+  // FIX: Limit to max 2 variations
+  const limitedQueries = searchQueries.slice(0, 2);
   
-  // With brand prefix for non-Apple products
-  if (!lowerName.includes('apple') && !lowerName.includes('iphone')) {
-    searchQueries.push(productName.split(' ').slice(0, 5).join(' '));
-  }
-  
-  console.log(`\n🐝 Scraping ${config.name}`);
-  console.log(`   Config:`, config.scrapingBeeOptions);
+  console.log(`\n🐝 Scraping ${config.name} (${limitedQueries.length} queries)`);
   
   let allProducts: ScrapedProduct[] = [];
   
   // Try each search query until we get products
-  for (let queryIndex = 0; queryIndex < searchQueries.length; queryIndex++) {
-    const query = searchQueries[queryIndex];
+  for (let queryIndex = 0; queryIndex < limitedQueries.length; queryIndex++) {
+    const query = limitedQueries[queryIndex];
     const searchUrl = config.searchUrl + encodeURIComponent(query);
     
     if (queryIndex > 0) {
@@ -1140,52 +1134,42 @@ async function scrapeMarketplacePrices(
       console.log(`   URL: ${searchUrl}`);
     }
     
-    let retries = 2;
-    let lastError: any = null;
-    
-    while (retries >= 0) {
-      try {
-        const sbUrl = new URL('https://app.scrapingbee.com/api/v1/');
-        sbUrl.searchParams.set('api_key', scrapingbeeApiKey);
-        sbUrl.searchParams.set('url', searchUrl);
-        sbUrl.searchParams.set('render_js', String(config.scrapingBeeOptions.renderJs));
-        sbUrl.searchParams.set('wait', String(config.scrapingBeeOptions.wait));
-        sbUrl.searchParams.set('block_resources', String(config.scrapingBeeOptions.blockResources));
-        sbUrl.searchParams.set('block_ads', String(config.scrapingBeeOptions.blockAds));
-        sbUrl.searchParams.set('country_code', config.scrapingBeeOptions.countryCode);
-        sbUrl.searchParams.set('premium_proxy', 'true');
-        sbUrl.searchParams.set('wait_browser', 'load');
-        
-        // ✅ Add wait_for selector for JS-heavy marketplaces
-        if (config.name === 'Extra') {
-          sbUrl.searchParams.set('wait_for', 'div.product-tile,div[data-qa="product-tile"]');
-        }
-        if (config.name === 'Noon') {
-          sbUrl.searchParams.set('wait_for', 'div[data-qa="product-card"]');
-        }
-        
-        const response = await fetch(sbUrl.toString());
-        
-        if (response.status === 500) {
-          console.log(`⚠️ Got HTTP 500, retries left: ${retries}`);
-          if (retries > 0) {
-            retries--;
-            await new Promise(r => setTimeout(r, 2000));
-            continue;
-          }
-          const errorText = await response.text();
-          console.error(`❌ HTTP 500 after retries: ${errorText}`);
-          break; // Try next query variation
-        }
-        
-        if (!response.ok) {
-          const errorText = await response.text();
-          console.error(`❌ HTTP ${response.status}: ${errorText}`);
-          break; // Try next query variation
-        }
-        
-        const html = await response.text();
-        console.log(`✅ Received ${html.length} chars`);
+    try {
+      const sbUrl = new URL('https://app.scrapingbee.com/api/v1/');
+      sbUrl.searchParams.set('api_key', scrapingbeeApiKey);
+      sbUrl.searchParams.set('url', searchUrl);
+      sbUrl.searchParams.set('render_js', String(config.scrapingBeeOptions.renderJs));
+      sbUrl.searchParams.set('wait', String(config.scrapingBeeOptions.wait));
+      sbUrl.searchParams.set('block_resources', String(config.scrapingBeeOptions.blockResources));
+      sbUrl.searchParams.set('block_ads', String(config.scrapingBeeOptions.blockAds));
+      sbUrl.searchParams.set('country_code', config.scrapingBeeOptions.countryCode);
+      // FIX 6: Remove premium_proxy for faster response
+      sbUrl.searchParams.set('wait_browser', 'load');
+      
+      // ✅ Add wait_for selector for JS-heavy marketplaces
+      if (config.name === 'Extra') {
+        sbUrl.searchParams.set('wait_for', 'div.product-tile,div[data-qa="product-tile"]');
+      }
+      if (config.name === 'Noon') {
+        sbUrl.searchParams.set('wait_for', 'div[data-qa="product-card"]');
+      }
+      
+      const response = await fetch(sbUrl.toString());
+      
+      // FIX 4: Skip 503/500 gracefully - don't retry, just move on
+      if (response.status === 503 || response.status === 500) {
+        console.log(`⏭️ ${config.name} unavailable (HTTP ${response.status}), skipping...`);
+        break; // Skip this marketplace entirely
+      }
+      
+      if (!response.ok) {
+        const errorText = await response.text().catch(() => 'Unknown error');
+        console.error(`❌ HTTP ${response.status}: ${errorText.slice(0, 200)}`);
+        continue; // Try next query variation
+      }
+      
+      const html = await response.text();
+      console.log(`✅ Received ${html.length} chars`);
         
         const parser = new DOMParser();
         const doc = parser.parseFromString(html, 'text/html');
@@ -1334,17 +1318,9 @@ async function scrapeMarketplacePrices(
         }
         
       } catch (error: any) {
-        lastError = error;
-        if (retries > 0) {
-          console.log(`⚠️ Error, retrying... (${retries} left)`);
-          retries--;
-          await new Promise(r => setTimeout(r, 2000));
-          continue;
-        }
-        console.error(`❌ Error after retries:`, error.message);
-        break; // Try next query variation
+        console.error(`❌ Error scraping ${config.name}:`, error.message);
+        continue; // Try next query variation
       }
-    }
     
     // If we got products from this query, stop trying variations
     if (allProducts.length > 0) {
@@ -1448,30 +1424,64 @@ serve(async (req) => {
       .delete()
       .eq('baseline_id', baseline_id);
 
+    // FIX 5: Add Google Shopping as PRIMARY source (runs in parallel with others)
     const marketplaceKeys = baseline.currency === 'SAR' 
-      ? ['amazon', 'noon', 'extra', 'jarir']
-      : ['amazon-us', 'walmart', 'ebay', 'target'];
+      ? ['google-shopping', 'amazon', 'noon', 'extra', 'jarir']
+      : ['google-shopping', 'amazon-us', 'walmart', 'ebay', 'target'];
 
     const results = [];
     const lowConfidenceProducts: string[] = [];
     const failedMarketplaces: string[] = [];
     let foundValidProducts = false;
+    
+    // FIX 3: Per-marketplace timeout (15 seconds max)
+    const MARKETPLACE_TIMEOUT = 15000;
 
     // ✅ FIX 1: PARALLELIZE MARKETPLACE SCRAPING
-    console.log(`\n🚀 Starting parallel scraping of ${marketplaceKeys.length} marketplaces...`);
+    console.log(`\n🚀 Starting parallel scraping of ${marketplaceKeys.length} marketplaces (including Google Shopping)...`);
     
     const scrapePromises = marketplaceKeys.map(async (marketplaceKey) => {
       try {
         const config = MARKETPLACE_CONFIGS[marketplaceKey];
         console.log(`\n=== Scraping ${config.name} ===`);
         
-        let products = await scrapeMarketplacePrices(
-          config,
-          coreProductName,
-          baseline.product_name,
-          baseline.current_price,
-          baseline.currency
-        );
+        // FIX 3: Wrap scraping in timeout
+        const scrapeWithTimeout = async () => {
+          // For google-shopping, use dedicated scraper
+          if (marketplaceKey === 'google-shopping') {
+            return await scrapeGoogleShopping(
+              coreProductName,
+              baseline.current_price,
+              baseline.currency,
+              baseline.product_name
+            );
+          }
+          return await scrapeMarketplacePrices(
+            config,
+            coreProductName,
+            baseline.product_name,
+            baseline.current_price,
+            baseline.currency
+          );
+        };
+        
+        // Race between scraping and timeout
+        let products: ScrapedProduct[];
+        try {
+          products = await Promise.race([
+            scrapeWithTimeout(),
+            new Promise<ScrapedProduct[]>((_, reject) => 
+              setTimeout(() => reject(new Error('Timeout')), MARKETPLACE_TIMEOUT)
+            )
+          ]);
+        } catch (timeoutError: any) {
+          if (timeoutError.message === 'Timeout') {
+            console.log(`⏱️ ${config.name} timed out after ${MARKETPLACE_TIMEOUT/1000}s, skipping...`);
+            failedMarketplaces.push(marketplaceKey);
+            return { marketplace: config.name, status: 'timeout' };
+          }
+          throw timeoutError;
+        }
         
         // Apply smart filtering: If baseline is NOT an accessory, filter OUT accessories
         if (!baselineIsAccessory && products.length > 0) {
