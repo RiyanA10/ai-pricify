@@ -742,16 +742,30 @@ function extractModelInfo(productName: string): {
 }
 
 /**
+ * Extract storage size from product name (e.g., "256GB" -> 256)
+ */
+function extractStorageSize(productName: string): number | null {
+  const storageMatch = productName.match(/(\d+)\s*(?:gb|GB|Gb)/i);
+  return storageMatch ? parseInt(storageMatch[1]) : null;
+}
+
+/**
  * Check if two products have mismatched model numbers
  * Returns TRUE if they are different models (should be filtered out)
+ * FIX 3: Allow storage variants to match (256GB/512GB same model = OK)
  */
 function isModelMismatch(baselineProduct: string, competitorProduct: string): boolean {
   const baseline = extractModelInfo(baselineProduct);
   const competitor = extractModelInfo(competitorProduct);
   
-  // ✅ FIX 2: Check brand first (iPhone Air vs iPhone)
-  if (baseline.brand !== competitor.brand) {
+  // Check brand first (iPhone Air vs iPhone)
+  if (baseline.brand && competitor.brand && baseline.brand !== competitor.brand) {
     return true; // Different brands (e.g., iphone-air vs iphone)
+  }
+  
+  // If only one has brand info, allow it (can't determine mismatch)
+  if ((baseline.brand && !competitor.brand) || (!baseline.brand && competitor.brand)) {
+    return false;
   }
   
   // If both are iPhones, version must match
@@ -763,7 +777,7 @@ function isModelMismatch(baselineProduct: string, competitorProduct: string): bo
       }
     }
     
-    // ✅ FIX 3: Model variant must ALSO match (Pro Max vs Pro)
+    // Model variant must ALSO match (Pro Max vs Pro)
     if (baseline.model && competitor.model) {
       const baselineModel = baseline.model.replace(/\s+/g, '');
       const competitorModel = competitor.model.replace(/\s+/g, '');
@@ -771,6 +785,9 @@ function isModelMismatch(baselineProduct: string, competitorProduct: string): bo
         return true; // MISMATCH: Different model variants (promax vs pro)
       }
     }
+    
+    // FIX 3: Storage variants are ALLOWED - don't filter based on storage
+    // 256GB and 512GB of same model are comparable for pricing
   }
   
   // If both are Galaxy phones, version must match
@@ -1078,13 +1095,34 @@ async function scrapeMarketplacePrices(
     return [];
   }
   
-  // ✅ NEW: Try multiple search query variations
-  const searchQueries = [
-    productName,                                           // Original: "iPhone 17 Pro Max 256GB"
-    productName.replace(/\s+/g, '%20'),                   // URL encoded spaces
-    productName.split(' ').slice(0, 4).join(' '),        // Shorter: "iPhone 17 Pro Max"
-    `Apple ${productName}`,                               // With brand prefix
-  ];
+  // FIX 2: Improved search query strategy with more variations
+  const searchQueries: string[] = [];
+  
+  // Original query
+  searchQueries.push(productName);
+  
+  // For iPhones: try without storage size first (broader results)
+  const lowerName = productName.toLowerCase();
+  if (lowerName.includes('iphone')) {
+    // "iPhone 16 Pro Max 256GB" -> "iPhone 16 Pro Max"
+    const withoutStorage = productName.replace(/\s*\d+\s*(?:gb|GB|tb|TB)/gi, '').trim();
+    if (withoutStorage !== productName) {
+      searchQueries.push(withoutStorage);
+    }
+    // Also try with "Apple" prefix
+    searchQueries.push(`Apple ${withoutStorage}`);
+  }
+  
+  // Shorter version (first 4 words)
+  const shorterQuery = productName.split(' ').slice(0, 4).join(' ');
+  if (!searchQueries.includes(shorterQuery)) {
+    searchQueries.push(shorterQuery);
+  }
+  
+  // With brand prefix for non-Apple products
+  if (!lowerName.includes('apple') && !lowerName.includes('iphone')) {
+    searchQueries.push(productName.split(' ').slice(0, 5).join(' '));
+  }
   
   console.log(`\n🐝 Scraping ${config.name}`);
   console.log(`   Config:`, config.scrapingBeeOptions);
@@ -1637,17 +1675,27 @@ serve(async (req) => {
     
     console.log(`\n✅ Parallel scraping complete: ${results.length} marketplaces processed`)
 
-    // GOOGLE FALLBACK: Trigger if ANY marketplace failed OR no products found OR low confidence
-    const shouldUseGoogleFallback = !foundValidProducts || failedMarketplaces.length > 0 || lowConfidenceProducts.length > 0;
+    // FIX 5: Count total valid products across all marketplaces
+    const { data: totalProducts } = await supabase
+      .from('competitor_products')
+      .select('id', { count: 'exact' })
+      .eq('baseline_id', baseline_id);
+    
+    const totalProductCount = totalProducts?.length || 0;
+    console.log(`\n📊 Total products found across all marketplaces: ${totalProductCount}`);
+    
+    // GOOGLE FALLBACK: Trigger if insufficient products (< 3) OR marketplace failed OR low confidence
+    const insufficientProducts = totalProductCount < 3;
+    const shouldUseGoogleFallback = insufficientProducts || !foundValidProducts || failedMarketplaces.length >= 2;
     
     if (shouldUseGoogleFallback) {
       console.log('\n=== GOOGLE FALLBACK TRIGGERED ===');
-      if (!foundValidProducts) {
+      if (insufficientProducts) {
+        console.log(`Reason: Insufficient products (only ${totalProductCount} found, need at least 3)`);
+      } else if (!foundValidProducts) {
         console.log('Reason: No products found across all marketplaces');
-      } else if (failedMarketplaces.length > 0) {
+      } else if (failedMarketplaces.length >= 2) {
         console.log(`Reason: ${failedMarketplaces.length} marketplace(s) failed: ${failedMarketplaces.join(', ')}`);
-      } else {
-        console.log(`Reason: ${lowConfidenceProducts.length} low confidence products`);
       }
       
       try {
