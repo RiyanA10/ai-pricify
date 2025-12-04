@@ -10,6 +10,60 @@ const corsHeaders = {
 };
 
 // ========================================
+// SMART QUERY CONSTRUCTION (NOISE FILTERING)
+// ========================================
+
+// Universal noise words that indicate accessories/parts (not main products)
+const NOISE_WORDS = [
+  // Protection & Storage
+  'case', 'cover', 'sleeve', 'pouch', 'skin', 'protector', 'guard', 'film', 'glass', 'bag',
+  // Attachments & Wearables
+  'strap', 'band', 'bracelet', 'holder', 'stand', 'mount', 'dock',
+  // Power & Connectivity
+  'cable', 'wire', 'cord', 'charger', 'adapter', 'plug', 'battery',
+  // Parts & Consumables
+  'part', 'spare', 'replacement', 'bit', 'blade', 'refill', 'sample', 'empty', 'box',
+  // Fake/Toy
+  'toy', 'replica', 'dummy', 'miniature', 'sticker', 'decal'
+];
+
+// Quality filters to exclude used/damaged products
+const QUALITY_FILTERS = ['used', 'refurbished', 'broken', 'repair', 'damaged', 'faulty', 'renewed'];
+
+/**
+ * Build a smart search query with negative keywords
+ * Self-aware: only excludes noise words NOT in the product name
+ */
+function buildSearchQuery(productName: string, isRefurbished: boolean = false): string {
+  const lowerName = productName.toLowerCase();
+  const exclusions: string[] = [];
+  
+  // Add negative keywords for noise words NOT in product name
+  for (const word of NOISE_WORDS) {
+    if (!lowerName.includes(word)) {
+      exclusions.push(`-${word}`);
+    }
+  }
+  
+  // Add quality filters (unless user explicitly sells refurbished)
+  if (!isRefurbished) {
+    for (const filter of QUALITY_FILTERS) {
+      if (!lowerName.includes(filter)) {
+        exclusions.push(`-${filter}`);
+      }
+    }
+  }
+  
+  // Limit to ~20 exclusions to avoid query length issues
+  const limitedExclusions = exclusions.slice(0, 20);
+  
+  const smartQuery = `${productName} ${limitedExclusions.join(' ')}`;
+  console.log(`🔧 Smart query built: "${productName}" → ${limitedExclusions.length} exclusions`);
+  
+  return smartQuery;
+}
+
+// ========================================
 // MARKETPLACE CONFIGURATIONS
 // ========================================
 
@@ -919,11 +973,28 @@ function extractStoreFromUrl(url: string): string {
   try {
     const hostname = new URL(url).hostname.toLowerCase();
     
-    // Known store mappings
+    // Known store mappings - Saudi Arabia
     if (hostname.includes('noon.com')) return 'Noon';
     if (hostname.includes('extra.com')) return 'Extra';
     if (hostname.includes('jarir.com')) return 'Jarir';
     if (hostname.includes('amazon.sa')) return 'Amazon SA';
+    if (hostname.includes('carrefour')) return 'Carrefour';
+    if (hostname.includes('lulu')) return 'LuLu';
+    if (hostname.includes('panda')) return 'Panda';
+    if (hostname.includes('xcite')) return 'X-cite';
+    if (hostname.includes('souq')) return 'Souq';
+    if (hostname.includes('pricena')) return 'Pricena';
+    if (hostname.includes('opensooq')) return 'Opensooq';
+    if (hostname.includes('haraj')) return 'Haraj';
+    if (hostname.includes('olx')) return 'OLX';
+    if (hostname.includes('dubizzle')) return 'Dubizzle';
+    if (hostname.includes('sharafdg')) return 'Sharaf DG';
+    if (hostname.includes('saco')) return 'SACO';
+    if (hostname.includes('virgin')) return 'Virgin Megastore';
+    if (hostname.includes('homebox')) return 'Home Box';
+    if (hostname.includes('ikea')) return 'IKEA';
+    
+    // Known store mappings - International
     if (hostname.includes('amazon.com')) return 'Amazon US';
     if (hostname.includes('walmart.com')) return 'Walmart';
     if (hostname.includes('ebay.com')) return 'eBay';
@@ -931,11 +1002,8 @@ function extractStoreFromUrl(url: string): string {
     if (hostname.includes('bestbuy.com')) return 'Best Buy';
     if (hostname.includes('newegg.com')) return 'Newegg';
     if (hostname.includes('bhphotovideo.com')) return 'B&H Photo';
-    if (hostname.includes('carrefour')) return 'Carrefour';
-    if (hostname.includes('lulu')) return 'LuLu';
-    if (hostname.includes('panda')) return 'Panda';
-    if (hostname.includes('xcite')) return 'X-cite';
-    if (hostname.includes('souq')) return 'Souq';
+    if (hostname.includes('costco')) return 'Costco';
+    if (hostname.includes('aliexpress')) return 'AliExpress';
     
     // Extract domain name as fallback (e.g., "example" from "www.example.com")
     const parts = hostname.replace('www.', '').split('.');
@@ -1104,12 +1172,17 @@ async function scrapeGoogleShopping(
     return [];
   }
   
+  // ✅ Build smart query with negative keywords (self-aware)
+  const isRefurbished = productName.toLowerCase().includes('refurbished') || productName.toLowerCase().includes('renewed');
+  const smartQuery = buildSearchQuery(productName, isRefurbished);
+  
   console.log(`\n🛒 Google Shopping Search (stealth_proxy)`);
-  console.log(`   Query: "${productName}"`);
+  console.log(`   Original: "${productName}"`);
+  console.log(`   Smart Query: "${smartQuery.slice(0, 100)}..."`);
   
   try {
-    // ✅ Use Google Shopping tab directly with stealth_proxy
-    const shoppingUrl = `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(productName)}`;
+    // ✅ Use Google Shopping tab directly with stealth_proxy + smart query
+    const shoppingUrl = `https://www.google.com/search?tbm=shop&q=${encodeURIComponent(smartQuery)}`;
     
     const sbUrl = new URL('https://app.scrapingbee.com/api/v1/');
     sbUrl.searchParams.set('api_key', scrapingbeeApiKey);
@@ -1580,113 +1653,154 @@ serve(async (req) => {
       .delete()
       .eq('baseline_id', baseline_id);
 
-    // FIX 5: Add Google Shopping as PRIMARY source (runs in parallel with others)
+    // SEQUENTIAL SCRAPING ORDER FOR DEBUGGING
+    // Step 1: Google Shopping (most reliable)
+    // Step 2: Amazon (usually works)
+    // Step 3-5: Saudi marketplaces (Noon, Extra, Jarir) with detailed logging
     const marketplaceKeys = baseline.currency === 'SAR' 
       ? ['google-shopping', 'amazon', 'noon', 'extra', 'jarir']
       : ['google-shopping', 'amazon-us', 'walmart', 'ebay', 'target'];
 
-    const results = [];
+    const results: any[] = [];
     const lowConfidenceProducts: string[] = [];
     const failedMarketplaces: string[] = [];
     let foundValidProducts = false;
     
-    // FIX 3: Per-marketplace timeout (25 seconds for slow sites)
-    const MARKETPLACE_TIMEOUT = 25000;
+    // Increased timeout for debugging (40 seconds)
+    const MARKETPLACE_TIMEOUT = 40000;
 
-    // ✅ FIX 1: PARALLELIZE MARKETPLACE SCRAPING
-    console.log(`\n🚀 Starting parallel scraping of ${marketplaceKeys.length} marketplaces (including Google Shopping)...`);
+    // ✅ SEQUENTIAL SCRAPING FOR DEBUGGING
+    console.log(`\n🔬 Starting SEQUENTIAL scraping for debugging (${marketplaceKeys.length} marketplaces)...`);
+    console.log(`   Order: ${marketplaceKeys.join(' → ')}`);
     
-    const scrapePromises = marketplaceKeys.map(async (marketplaceKey) => {
+    for (const marketplaceKey of marketplaceKeys) {
+      const config = MARKETPLACE_CONFIGS[marketplaceKey];
+      const startTime = Date.now();
+      
+      console.log(`\n${'='.repeat(60)}`);
+      console.log(`📡 [${marketplaceKey}] Starting scrape at ${new Date().toISOString()}`);
+      console.log(`   Config: wait=${config.scrapingBeeOptions.wait}ms, country=${config.scrapingBeeOptions.countryCode}`);
+      console.log(`   URL pattern: ${config.searchUrl}`);
+      console.log(`${'='.repeat(60)}`);
+      
       try {
-        const config = MARKETPLACE_CONFIGS[marketplaceKey];
-        console.log(`\n=== Scraping ${config.name} ===`);
+        let products: ScrapedProduct[] = [];
         
-        // FIX 3: Wrap scraping in timeout
-        const scrapeWithTimeout = async () => {
-          // For google-shopping, use dedicated scraper
-          if (marketplaceKey === 'google-shopping') {
-            return await scrapeGoogleShopping(
-              coreProductName,
-              baseline.current_price,
-              baseline.currency,
-              baseline.product_name
-            );
-          }
-          return await scrapeMarketplacePrices(
-            config,
-            coreProductName,
-            baseline.product_name,
-            baseline.current_price,
-            baseline.currency
-          );
-        };
-        
-        // Race between scraping and timeout
-        let products: ScrapedProduct[];
+        // Scrape with detailed timing
         try {
-          products = await Promise.race([
-            scrapeWithTimeout(),
-            new Promise<ScrapedProduct[]>((_, reject) => 
-              setTimeout(() => reject(new Error('Timeout')), MARKETPLACE_TIMEOUT)
-            )
-          ]);
+          const scrapeStartTime = Date.now();
+          
+          if (marketplaceKey === 'google-shopping') {
+            console.log(`   🛒 Using Google Shopping scraper...`);
+            products = await Promise.race([
+              scrapeGoogleShopping(
+                coreProductName,
+                baseline.current_price,
+                baseline.currency,
+                baseline.product_name
+              ),
+              new Promise<ScrapedProduct[]>((_, reject) => 
+                setTimeout(() => reject(new Error('Timeout')), MARKETPLACE_TIMEOUT)
+              )
+            ]);
+          } else {
+            console.log(`   🏪 Using marketplace scraper for ${config.name}...`);
+            products = await Promise.race([
+              scrapeMarketplacePrices(
+                config,
+                coreProductName,
+                baseline.product_name,
+                baseline.current_price,
+                baseline.currency
+              ),
+              new Promise<ScrapedProduct[]>((_, reject) => 
+                setTimeout(() => reject(new Error('Timeout')), MARKETPLACE_TIMEOUT)
+              )
+            ]);
+          }
+          
+          const scrapeEndTime = Date.now();
+          console.log(`   ⏱️ Scrape completed in ${scrapeEndTime - scrapeStartTime}ms`);
+          console.log(`   📦 Raw products returned: ${products.length}`);
+          
         } catch (timeoutError: any) {
           if (timeoutError.message === 'Timeout') {
-            console.log(`⏱️ ${config.name} timed out after ${MARKETPLACE_TIMEOUT/1000}s, skipping...`);
+            const elapsed = Date.now() - startTime;
+            console.log(`   ❌ TIMEOUT after ${elapsed}ms (limit: ${MARKETPLACE_TIMEOUT}ms)`);
+            console.log(`   📊 Diagnosis: ScrapingBee or website too slow`);
             failedMarketplaces.push(marketplaceKey);
-            return { marketplace: config.name, status: 'timeout' };
+            
+            await supabase.from('competitor_prices').insert({
+              baseline_id,
+              merchant_id: baseline.merchant_id,
+              marketplace: marketplaceKey,
+              currency: baseline.currency,
+              fetch_status: 'timeout'
+            });
+            
+            results.push({ marketplace: config.name, status: 'timeout', elapsed });
+            continue; // Move to next marketplace
           }
           throw timeoutError;
         }
         
-        // FIX 1: Smart accessory filtering based on baseline product type
+        // Log what we got
+        if (products.length === 0) {
+          console.log(`   ⚠️ NO PRODUCTS RETURNED`);
+          console.log(`   📊 Diagnosis: Either wrong selectors OR website blocked/empty`);
+        } else {
+          console.log(`   ✅ Got ${products.length} products before filtering`);
+          // Log first 3 products for debugging
+          products.slice(0, 3).forEach((p, i) => {
+            console.log(`      [${i}] "${p.name.slice(0, 50)}..." - ${p.price} ${baseline.currency} (sim: ${(p.similarity * 100).toFixed(0)}%)`);
+          });
+        }
+        
+        // Apply accessory filtering
         if (products.length > 0) {
           const beforeFilter = products.length;
           
           if (baselineIsAccessory) {
-            // If baseline IS an accessory, KEEP accessories and filter OUT main products
             products = products.filter(product => {
               const isAccessory = isAccessoryOrReplacement(product.name);
               if (!isAccessory) {
-                console.log(`⏭️ Filtered main product (baseline is accessory): "${product.name.slice(0, 60)}..."`);
+                console.log(`   ⏭️ Filtered main product: "${product.name.slice(0, 40)}..."`);
               }
               return isAccessory;
             });
-            console.log(`🔍 Filtering: ${beforeFilter} products → ${products.length} products (kept ${products.length} accessories)`);
+            console.log(`   🔍 Accessory filter: ${beforeFilter} → ${products.length} (kept accessories)`);
           } else {
-            // If baseline is NOT an accessory, filter OUT accessories
             products = products.filter(product => {
               const isAccessory = isAccessoryOrReplacement(product.name);
               if (isAccessory) {
-                console.log(`⏭️ Filtered accessory: "${product.name.slice(0, 60)}..."`);
+                console.log(`   ⏭️ Filtered accessory: "${product.name.slice(0, 40)}..."`);
               }
               return !isAccessory;
             });
-            console.log(`🔍 Filtering: ${beforeFilter} products → ${products.length} products (removed ${beforeFilter - products.length} accessories)`);
+            console.log(`   🔍 Accessory filter: ${beforeFilter} → ${products.length} (removed accessories)`);
           }
         }
         
-        // 🆕 FILTER MODEL MISMATCHES for electronics
+        // Model mismatch filtering for electronics
         if (baseline.category === 'Electronics & Technology' && products.length > 0) {
           const beforeModelFilter = products.length;
           products = products.filter(product => {
             const isMismatch = isModelMismatch(baseline.product_name, product.name);
             if (isMismatch) {
-              console.log(`⏭️ Filtered model mismatch: "${product.name.slice(0, 60)}..."`);
+              console.log(`   ⏭️ Model mismatch: "${product.name.slice(0, 40)}..."`);
             }
             return !isMismatch;
           });
-          console.log(`🔍 Model filtering: ${beforeModelFilter} products → ${products.length} products (removed ${beforeModelFilter - products.length} wrong models)`);
+          console.log(`   🔍 Model filter: ${beforeModelFilter} → ${products.length}`);
         }
         
-        // ✅ FIX 4: BATCH AI VALIDATION - Run in parallel batches of 5
+        // AI validation for medium confidence products
         if (products.length > 0) {
           const mediumConfidenceProducts = products.filter(p => p.similarity >= 0.30 && p.similarity < 0.80);
           
           if (mediumConfidenceProducts.length > 0) {
-            console.log(`\n🤖 Running AI validation on ${mediumConfidenceProducts.length} medium-confidence products (batches of 5)...`);
+            console.log(`   🤖 AI validating ${mediumConfidenceProducts.length} medium-confidence products...`);
             
-            // Process in batches of 5
             for (let i = 0; i < mediumConfidenceProducts.length; i += 5) {
               const batch = mediumConfidenceProducts.slice(i, i + 5);
               
@@ -1704,57 +1818,53 @@ serve(async (req) => {
                   });
                   
                   if (validationError) {
-                    console.log(`   ⚠️ AI validation error for "${product.name.slice(0, 50)}..."`);
+                    console.log(`      ⚠️ AI error for "${product.name.slice(0, 30)}..."`);
                     return;
                   }
                   
-                  // ✅ FIX 2: NORMALIZE AI DECISION (handle DIFFERENT, different_product, etc.)
                   const decision = validationResult?.decision?.toLowerCase().replace(/_/g, '');
                   if (decision === 'accessory' || decision === 'differentproduct' || decision === 'different') {
-                    console.log(`   🤖 AI filtered: "${product.name.slice(0, 50)}..." → ${validationResult.decision}`);
-                    product.similarity = -1; // Mark for removal
+                    console.log(`      🤖 AI rejected: "${product.name.slice(0, 30)}..." → ${validationResult.decision}`);
+                    product.similarity = -1;
                   }
                 } catch (e) {
-                  console.log(`   ⚠️ AI validation exception: ${e}`);
+                  console.log(`      ⚠️ AI exception: ${e}`);
                 }
               }));
             }
             
-            // Remove AI-filtered products
             const beforeAiFilter = products.length;
             products = products.filter(p => p.similarity >= 0);
             if (beforeAiFilter > products.length) {
-              console.log(`🤖 AI filtering: ${beforeAiFilter} → ${products.length} products (removed ${beforeAiFilter - products.length})`);
+              console.log(`   🤖 AI filter: ${beforeAiFilter} → ${products.length}`);
             }
           }
         }
         
-        // ✅ FIX 3: MINIMUM SIMILARITY THRESHOLD - Only save products >= 60%
+        // Similarity threshold
         if (products.length > 0) {
           const beforeSimilarityFilter = products.length;
           products = products.filter(p => p.similarity >= 0.60);
           if (beforeSimilarityFilter > products.length) {
-            console.log(`🎯 Similarity filter: ${beforeSimilarityFilter} → ${products.length} products (removed ${beforeSimilarityFilter - products.length} below 60%)`);
+            console.log(`   🎯 Similarity filter: ${beforeSimilarityFilter} → ${products.length} (removed <60%)`);
           }
         }
         
+        // Save results
         if (products.length > 0) {
           foundValidProducts = true;
           
-          // Track low confidence products for potential Google fallback
           products.forEach(p => {
             if (p.similarity < 0.30) {
               lowConfidenceProducts.push(p.name);
             }
           });
           
-          // Insert each product into competitor_products table
-          // FIX 2: Use actual store name, not "google-shopping (StoreName)"
           const productRows = products.map((product, index) => ({
             baseline_id,
             merchant_id: baseline.merchant_id,
             marketplace: marketplaceKey === 'google-shopping' && product.sourceStore && product.sourceStore !== 'Unknown'
-              ? product.sourceStore  // Just "Noon", not "google-shopping (Noon)"
+              ? product.sourceStore
               : marketplaceKey === 'google-shopping' ? 'Google' : marketplaceKey,
             product_name: product.name,
             price: product.price,
@@ -1770,12 +1880,11 @@ serve(async (req) => {
             .insert(productRows);
           
           if (productsError) {
-            console.error('Error inserting competitor products:', productsError);
+            console.error(`   ❌ DB insert error:`, productsError);
           } else {
-            console.log(`✓ Inserted ${products.length} products into competitor_products`);
+            console.log(`   ✅ Saved ${products.length} products to DB`);
           }
           
-          // ✅ FIX 5: CONSISTENT AVERAGE - Only use high similarity products (>= 60%)
           const highSimilarityProducts = products.filter(p => p.similarity >= 0.60);
           const prices = highSimilarityProducts.map(p => p.price);
           const lowest = Math.min(...prices);
@@ -1794,16 +1903,19 @@ serve(async (req) => {
             fetch_status: 'success'
           });
           
-          return {
+          const elapsed = Date.now() - startTime;
+          console.log(`   📊 RESULT: SUCCESS - ${highSimilarityProducts.length} products (${lowest.toFixed(0)}-${highest.toFixed(0)} ${baseline.currency}) in ${elapsed}ms`);
+          
+          results.push({
             marketplace: config.name,
             status: 'success',
             products_found: highSimilarityProducts.length,
             lowest,
             average,
-            highest
-          };
+            highest,
+            elapsed
+          });
         } else {
-          // Track failed marketplace
           failedMarketplaces.push(marketplaceKey);
           
           await supabase.from('competitor_prices').insert({
@@ -1814,14 +1926,16 @@ serve(async (req) => {
             fetch_status: 'no_data'
           });
           
-          return {
-            marketplace: config.name,
-            status: 'no_data'
-          };
+          const elapsed = Date.now() - startTime;
+          console.log(`   📊 RESULT: NO DATA - 0 products after filtering in ${elapsed}ms`);
+          console.log(`   📊 Diagnosis: Products found but all filtered out OR wrong selectors`);
+          
+          results.push({ marketplace: config.name, status: 'no_data', elapsed });
         }
         
       } catch (error: any) {
-        console.error(`Error with ${marketplaceKey}:`, error);
+        const elapsed = Date.now() - startTime;
+        console.error(`   ❌ ERROR after ${elapsed}ms:`, error.message);
         
         await supabase.from('competitor_prices').insert({
           baseline_id,
@@ -1831,32 +1945,24 @@ serve(async (req) => {
           fetch_status: 'failed'
         });
         
-        return {
-          marketplace: marketplaceKey,
+        results.push({
+          marketplace: config.name,
           status: 'failed',
-          error: error?.message || 'Unknown error'
-        };
-      }
-    });
-    
-    // Wait for all marketplaces to complete (in parallel)
-    const allResults = await Promise.allSettled(scrapePromises);
-    
-    // Process results
-    for (const result of allResults) {
-      if (result.status === 'fulfilled' && result.value) {
-        results.push(result.value);
-        if (result.value.status === 'success') {
-          console.log(`✓ ${result.value.marketplace}: ${result.value.products_found} products: ${result.value.lowest?.toFixed(2)}-${result.value.highest?.toFixed(2)} ${baseline.currency}`);
-        } else {
-          console.log(`✗ ${result.value.marketplace}: ${result.value.status}`);
-        }
-      } else if (result.status === 'rejected') {
-        console.error(`❌ Marketplace scraping rejected:`, result.reason);
+          error: error?.message || 'Unknown error',
+          elapsed
+        });
       }
     }
     
-    console.log(`\n✅ Parallel scraping complete: ${results.length} marketplaces processed`)
+    // Summary
+    console.log(`\n${'='.repeat(60)}`);
+    console.log(`📊 SEQUENTIAL SCRAPING SUMMARY`);
+    console.log(`${'='.repeat(60)}`);
+    for (const result of results) {
+      const statusIcon = result.status === 'success' ? '✅' : result.status === 'timeout' ? '⏱️' : '❌';
+      console.log(`${statusIcon} ${result.marketplace}: ${result.status} (${result.elapsed}ms)${result.products_found ? ` - ${result.products_found} products` : ''}`);
+    }
+    console.log(`${'='.repeat(60)}`)
 
     // FIX 5: Count total valid products across all marketplaces
     const { data: totalProducts } = await supabase
