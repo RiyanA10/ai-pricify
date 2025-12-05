@@ -99,8 +99,29 @@ function simplifyTitle(fullName: string): string {
     .join(' ')
     .trim();
   
-  console.log(`🔧 Simplified title: "${fullName.slice(0, 50)}..." → "${simplified}"`);
   return simplified;
+}
+
+/**
+ * Normalize store names from Google results to marketplace keys
+ * Known stores merge with direct scraping results, others keep original name
+ */
+function normalizeStoreToMarketplace(storeName: string | undefined): string {
+  if (!storeName || storeName === 'Unknown' || storeName === 'Google') {
+    return 'Unknown Store';
+  }
+  
+  const lower = storeName.toLowerCase();
+  
+  // Map to our known marketplace keys (merge with direct scraping)
+  if (lower.includes('amazon')) return 'amazon';
+  if (lower.includes('noon')) return 'noon';
+  if (lower.includes('extra') && !lower.includes('extrastore')) return 'extra';
+  if (lower.includes('jarir')) return 'jarir';
+  
+  // Keep original store name for stores we don't scrape directly
+  // e.g., "Pricena" stays "Pricena", "MobileShop" stays "MobileShop"
+  return storeName;
 }
 
 // ========================================
@@ -2355,12 +2376,13 @@ serve(async (req) => {
         }
         
         if (googleProducts.length > 0) {
+          // Save individual products with their actual store names
           const productRows = googleProducts.map((product, index) => ({
             baseline_id,
             merchant_id: baseline.merchant_id,
             marketplace: product.sourceStore && product.sourceStore !== 'Unknown'
               ? product.sourceStore
-              : 'Google',
+              : 'Unknown Store',
             product_name: product.name,
             price: product.price,
             similarity_score: product.similarity,
@@ -2372,29 +2394,48 @@ serve(async (req) => {
           
           await supabase.from('competitor_products').insert(productRows);
           
+          // Group products by normalized marketplace for aggregation
           const highSimilarityProducts = googleProducts.filter(p => p.similarity >= 0.60);
-          const prices = highSimilarityProducts.map(p => p.price);
-          // FIX: Use upsert to prevent duplicate Google Shopping records
-          await supabase.from('competitor_prices').upsert({
-            baseline_id,
-            merchant_id: baseline.merchant_id,
-            marketplace: 'google-shopping',
-            lowest_price: Math.min(...prices),
-            average_price: prices.reduce((a, b) => a + b, 0) / prices.length,
-            highest_price: Math.max(...prices),
-            currency: baseline.currency,
-            products_found: highSimilarityProducts.length,
-            fetch_status: 'success',
-            last_updated: new Date().toISOString()
-          }, { onConflict: 'baseline_id,marketplace' });
+          const productsByMarketplace: Record<string, typeof highSimilarityProducts> = {};
+          
+          for (const product of highSimilarityProducts) {
+            const marketplace = normalizeStoreToMarketplace(product.sourceStore);
+            if (!productsByMarketplace[marketplace]) {
+              productsByMarketplace[marketplace] = [];
+            }
+            productsByMarketplace[marketplace].push(product);
+          }
+          
+          // Upsert aggregated prices for EACH store separately
+          const storesFound: string[] = [];
+          for (const [marketplace, products] of Object.entries(productsByMarketplace)) {
+            const prices = products.map(p => p.price);
+            
+            await supabase.from('competitor_prices').upsert({
+              baseline_id,
+              merchant_id: baseline.merchant_id,
+              marketplace: marketplace, // "amazon", "noon", "Pricena", etc.
+              lowest_price: Math.min(...prices),
+              average_price: prices.reduce((a, b) => a + b, 0) / prices.length,
+              highest_price: Math.max(...prices),
+              currency: baseline.currency,
+              products_found: products.length,
+              fetch_status: 'success',
+              last_updated: new Date().toISOString()
+            }, { onConflict: 'baseline_id,marketplace' });
+            
+            console.log(`✓ Google found ${products.length} products from ${marketplace}`);
+            storesFound.push(marketplace);
+          }
           
           results.push({
             marketplace: 'Google Shopping (Fallback)',
             status: 'success',
-            products_found: highSimilarityProducts.length
+            products_found: highSimilarityProducts.length,
+            stores_found: storesFound
           });
           
-          console.log(`✓ Google fallback found ${googleProducts.length} products`);
+          console.log(`✓ Google fallback found ${googleProducts.length} products across ${storesFound.length} stores`);
         } else {
           await supabase.from('manual_review_queue').insert({
             baseline_id,
