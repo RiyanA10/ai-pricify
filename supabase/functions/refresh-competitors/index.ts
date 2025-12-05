@@ -216,8 +216,9 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
         '.a-price-range .a-price .a-offscreen'
       ]
     },
-    waitForSelector: '.a-price,.a-price-whole,span.a-offscreen',
-    useStealthProxy: false // Amazon usually works without stealth
+    // FIX 1: Wait for main search container AND stealth for Saudi site
+    waitForSelector: '#search,.s-result-list,.s-main-slot,.a-price',
+    useStealthProxy: true
   },
   'noon': {
     name: 'Noon',
@@ -1227,7 +1228,16 @@ async function scrapeGoogleShopping(
       const name = nameEl.textContent?.trim();
       if (!name) continue;
       
-      const priceEl = trySelectOne(container, ['.a8Pemb', 'span[aria-label*="$"]', 'span[aria-label*="SAR"]', 'span[aria-label*="price"]', '[data-sh-pr] span.a8Pemb', 'b']);
+      // FIX 2: Broader structural price selectors (avoid class-name drift)
+      const priceEl = trySelectOne(container, [
+        '[data-sh-pr] span[aria-label*="price"]',  // Structural - price attribute
+        'span[aria-label*="SAR"]',                  // Currency-based for Saudi
+        'span[aria-label*="$"]',                    // Currency-based for US
+        '[class*="price"] b',                       // Price class with bold
+        '.a8Pemb',                                  // Original (may break)
+        'b',                                        // Bold text fallback
+        '[class*="price"]'                          // Any price class
+      ]);
       if (!priceEl) continue;
       
       const priceText = priceEl.textContent?.trim();
@@ -1529,6 +1539,179 @@ async function scrapeMarketplacePrices(
   return allProducts
     .sort((a, b) => b.similarity - a.similarity)
     .slice(0, 20);
+}
+
+// ========================================
+// FIX 3: GOOGLE-FIRST DISCOVERY FOR EXTRA/JARIR
+// ========================================
+
+/**
+ * Use Google to find direct product URLs for sites that block search pages
+ * "Google Dorking" - searches site:extra.com Samsung S24 Ultra
+ */
+async function findProductLinkViaGoogle(
+  siteDomain: string,
+  productName: string
+): Promise<string | null> {
+  const scrapingbeeApiKey = Deno.env.get('SCRAPINGBEE_API_KEY');
+  if (!scrapingbeeApiKey) return null;
+  
+  const query = `site:${siteDomain} ${productName}`;
+  console.log(`🔎 Google Dorking: "${query}"`);
+  
+  const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
+  
+  const sbUrl = new URL('https://app.scrapingbee.com/api/v1/');
+  sbUrl.searchParams.set('api_key', scrapingbeeApiKey);
+  sbUrl.searchParams.set('url', googleUrl);
+  sbUrl.searchParams.set('custom_google', 'true');
+  sbUrl.searchParams.set('render_js', 'false'); // Faster - just need links
+  
+  try {
+    const response = await fetch(sbUrl.toString());
+    if (!response.ok) {
+      console.log(`   ❌ Google Dork failed: HTTP ${response.status}`);
+      return null;
+    }
+    
+    const html = await response.text();
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    if (!doc) return null;
+    
+    // Find first valid result link pointing to target domain
+    const allLinks = doc.querySelectorAll('a[href]') as any;
+    for (let i = 0; i < allLinks.length; i++) {
+      const link = allLinks[i];
+      const href = link?.getAttribute?.('href') || '';
+      if (href && href.includes(siteDomain) && href.startsWith('http')) {
+        // Skip non-product pages
+        if (href.includes('/search') || href.includes('?q=') || href.includes('/category/')) {
+          continue;
+        }
+        console.log(`   ✅ Found URL: ${href.slice(0, 70)}...`);
+        return href;
+      }
+    }
+    
+    console.log(`   ⚠️ No direct product link found for ${siteDomain}`);
+    return null;
+  } catch (err: any) {
+    console.log(`   ❌ Google Dork error: ${err.message}`);
+    return null;
+  }
+}
+
+/**
+ * Scrape a direct product detail page (simpler than search results)
+ */
+async function scrapeDirectProductPage(
+  url: string,
+  siteName: string,
+  baselinePrice: number,
+  currency: string,
+  baselineFullName: string,
+  costPrice?: number
+): Promise<ScrapedProduct | null> {
+  const scrapingbeeApiKey = Deno.env.get('SCRAPINGBEE_API_KEY');
+  if (!scrapingbeeApiKey) return null;
+  
+  console.log(`📦 Scraping direct page: ${url.slice(0, 60)}...`);
+  
+  const sbUrl = new URL('https://app.scrapingbee.com/api/v1/');
+  sbUrl.searchParams.set('api_key', scrapingbeeApiKey);
+  sbUrl.searchParams.set('url', url);
+  sbUrl.searchParams.set('render_js', 'true');
+  sbUrl.searchParams.set('stealth_proxy', 'true');
+  sbUrl.searchParams.set('wait', '5000');
+  
+  // Site-specific wait_for selectors for product detail pages
+  if (siteName === 'Extra') {
+    sbUrl.searchParams.set('wait_for', '.product-price,.price-box,[data-qa="product-price"],.c_product-price');
+  } else if (siteName === 'Jarir') {
+    sbUrl.searchParams.set('wait_for', '.price-box,.price,[data-price-amount],.product-info-price');
+  }
+  
+  try {
+    const response = await fetch(sbUrl.toString());
+    if (!response.ok) {
+      console.log(`   ❌ Direct scrape HTTP ${response.status}`);
+      return null;
+    }
+    
+    const html = await response.text();
+    console.log(`   ✅ Received ${html.length} chars from product page`);
+    
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(html, 'text/html');
+    if (!doc) return null;
+    
+    // Product detail pages have simpler structure - title usually in h1
+    const titleSelectors = ['h1', '.product-name', '[data-qa="product-name"]', '.product-title', 'h1.page-title'];
+    let title = '';
+    for (const selector of titleSelectors) {
+      const el = doc.querySelector(selector);
+      if (el?.textContent?.trim()) {
+        title = el.textContent.trim();
+        break;
+      }
+    }
+    
+    if (!title || title.length < 5) {
+      console.log(`   ⚠️ Could not find product title`);
+      return null;
+    }
+    
+    // Price selectors for product detail pages
+    const priceSelectors = [
+      '.product-price', '.price-box .price', '[data-qa="product-price"]',
+      '.price', '[data-price-amount]', '.final-price', '.special-price .price',
+      '.c_product-price', '.price-final_price .price', 'span[data-price-type="finalPrice"]',
+      '.priceNow', '[class*="priceNow"]', 'strong[class*="amount"]'
+    ];
+    
+    let price = 0;
+    for (const selector of priceSelectors) {
+      const priceEl = doc.querySelector(selector);
+      if (priceEl?.textContent) {
+        const extracted = extractPrice(priceEl.textContent, currency, baselineFullName);
+        if (extracted && extracted.price > 0) {
+          price = extracted.price;
+          console.log(`   💰 Found price: ${price} ${currency} (via ${selector})`);
+          break;
+        }
+      }
+    }
+    
+    if (price <= 0) {
+      console.log(`   ⚠️ Could not extract price from page`);
+      return null;
+    }
+    
+    // Validate price
+    if (!isValidPrice(price, baselinePrice, costPrice)) {
+      console.log(`   ⚠️ Price ${price} failed validation`);
+      return null;
+    }
+    
+    const normalizedBaseline = normalizeProductName(baselineFullName);
+    const normalizedCompetitor = normalizeProductName(title);
+    const similarity = calculateSimilarity(normalizedBaseline, normalizedCompetitor);
+    
+    console.log(`   📊 Product: "${title.slice(0, 50)}..." | Price: ${price} | Similarity: ${(similarity * 100).toFixed(0)}%`);
+    
+    return {
+      name: title,
+      price: price,
+      similarity: similarity,
+      priceRatio: price / baselinePrice,
+      url: url,
+      sourceStore: siteName
+    };
+  } catch (err: any) {
+    console.log(`   ❌ Direct scrape error: ${err.message}`);
+    return null;
+  }
 }
 
 // ========================================
@@ -1847,19 +2030,91 @@ serve(async (req) => {
       : ['google-shopping', 'amazon-us', 'walmart', 'ebay', 'target'];
 
     // ========================================
-    // FIX 1: PARALLEL SCRAPING WITH SAFE Promise.all
+    // PARALLEL SCRAPING WITH GOOGLE-FIRST STRATEGY FOR EXTRA/JARIR
     // ========================================
     console.log(`\n🚀 Starting PARALLEL scraping (${marketplaceKeys.length} marketplaces)...`);
     console.log(`   Marketplaces: ${marketplaceKeys.join(', ')}`);
     console.log(`   Timeout per marketplace: ${MARKETPLACE_TIMEOUT / 1000}s`);
+    console.log(`   Using Google-First Discovery for: extra, jarir`);
+    
+    // Simplified product name for Google-First discovery
+    const simplifiedProductName = simplifyTitle(baseline.product_name);
     
     // Fire all scrapers in parallel - each with its own try/catch
     const scrapeResults = await Promise.all(
       marketplaceKeys.map(async (marketplaceKey) => {
         const config = MARKETPLACE_CONFIGS[marketplaceKey];
+        const startTime = Date.now();
         
         // Each scraper wrapped in try/catch - one failure won't stop others
         try {
+          // FIX 3: Use Google-First Discovery for Extra and Jarir
+          if (marketplaceKey === 'extra' || marketplaceKey === 'jarir') {
+            const siteDomain = marketplaceKey === 'extra' ? 'extra.com' : 'jarir.com';
+            
+            console.log(`\n${'='.repeat(60)}`);
+            console.log(`📡 [${marketplaceKey}] Using Google-First Discovery`);
+            console.log(`${'='.repeat(60)}`);
+            
+            // Step 1: Find product URL via Google
+            const productUrl = await findProductLinkViaGoogle(siteDomain, simplifiedProductName);
+            
+            if (!productUrl) {
+              const elapsed = Date.now() - startTime;
+              console.log(`   📊 RESULT: NO_URL - Could not find product on ${siteDomain}`);
+              return {
+                marketplace: config.name,
+                products: [],
+                status: 'no_data' as const,
+                elapsed
+              };
+            }
+            
+            // Step 2: Scrape that specific product page
+            const product = await scrapeDirectProductPage(
+              productUrl,
+              config.name,
+              baseline.current_price,
+              baseline.currency,
+              baseline.product_name,
+              baseline.cost_per_unit
+            );
+            
+            const elapsed = Date.now() - startTime;
+            
+            if (product && product.similarity >= 0.60) {
+              // Apply model mismatch filter for electronics
+              if (baseline.category === 'Electronics & Technology') {
+                if (isModelMismatch(baseline.product_name, product.name)) {
+                  console.log(`   ⏭️ Model mismatch, rejecting`);
+                  return {
+                    marketplace: config.name,
+                    products: [],
+                    status: 'no_data' as const,
+                    elapsed
+                  };
+                }
+              }
+              
+              console.log(`   📊 RESULT: SUCCESS - 1 product via Google-First in ${elapsed}ms`);
+              return {
+                marketplace: config.name,
+                products: [product],
+                status: 'success' as const,
+                elapsed
+              };
+            } else {
+              console.log(`   📊 RESULT: NO_DATA - Product found but ${product ? `low similarity (${(product.similarity * 100).toFixed(0)}%)` : 'extraction failed'}`);
+              return {
+                marketplace: config.name,
+                products: [],
+                status: 'no_data' as const,
+                elapsed
+              };
+            }
+          }
+          
+          // Standard scraping for Amazon, Noon, Google Shopping
           return await scrapeMarketplaceWithTimeout(
             marketplaceKey,
             config,
@@ -1875,7 +2130,7 @@ serve(async (req) => {
             marketplace: config.name,
             products: [],
             status: 'error' as const,
-            elapsed: 0,
+            elapsed: Date.now() - startTime,
             error: err.message
           };
         }
