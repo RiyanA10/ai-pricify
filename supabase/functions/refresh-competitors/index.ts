@@ -1126,7 +1126,21 @@ async function scrapeGoogleSERP(
           const href = linkEl.getAttribute('href');
           if (href) {
             productUrl = href;
-            sourceStore = extractStoreFromUrl(href);
+            const urlStore = extractStoreFromUrl(href);
+            
+            // FIX: If URL returns Google, extract from HTML text
+            if (urlStore === 'Google' || urlStore === 'Unknown') {
+              const containerText = container.textContent || '';
+              const fromMatch = containerText.match(/from\s+([A-Za-z][A-Za-z0-9\s\.]+?)(?:\s*[·•\|]|\s*SAR|\s*\$|\s*\d|$)/i);
+              if (fromMatch && fromMatch[1]) {
+                sourceStore = fromMatch[1].trim();
+                console.log(`   📍 SERP store from HTML: "${sourceStore}"`);
+              } else {
+                sourceStore = urlStore;
+              }
+            } else {
+              sourceStore = urlStore;
+            }
             
             if (isNonRetailerDomain(href)) {
               console.log(`   ⏭️ Skipping non-retailer: ${sourceStore}`);
@@ -1262,7 +1276,29 @@ async function scrapeGoogleShopping(
           if (href) {
             const fullUrl = href.startsWith('http') ? href : `https://www.google.com${href}`;
             productUrl = fullUrl;
-            sourceStore = extractStoreFromUrl(fullUrl);
+            
+            // FIX: Try to extract store from URL first
+            const urlStore = extractStoreFromUrl(fullUrl);
+            
+            // If URL returns "Google" (redirect), try to extract from container HTML text
+            if (urlStore === 'Google' || urlStore === 'Unknown') {
+              const containerText = container.textContent || '';
+              // Look for "from [Store]" pattern in text (e.g., "from Amazon.sa", "from noon")
+              const fromMatch = containerText.match(/from\s+([A-Za-z][A-Za-z0-9\s\.]+?)(?:\s*[·•\|]|\s*SAR|\s*\$|\s*\d|$)/i);
+              if (fromMatch && fromMatch[1]) {
+                sourceStore = fromMatch[1].trim();
+                console.log(`   📍 Extracted store from HTML: "${sourceStore}"`);
+              } else {
+                // Try merchant/seller patterns
+                const sellerMatch = containerText.match(/(?:sold by|seller|merchant|shop)[\s:]+([A-Za-z][A-Za-z0-9\s\.]+?)(?:\s*[·•\|]|\s*SAR|\s*\$|\s*\d|$)/i);
+                if (sellerMatch && sellerMatch[1]) {
+                  sourceStore = sellerMatch[1].trim();
+                  console.log(`   📍 Extracted seller from HTML: "${sourceStore}"`);
+                }
+              }
+            } else {
+              sourceStore = urlStore;
+            }
             
             if (isNonRetailerDomain(fullUrl)) {
               console.log(`   ⏭️ Skipping non-retailer: ${sourceStore}`);
@@ -1404,7 +1440,18 @@ async function scrapeMarketplacePrices(
         console.log(`   HTML length: ${doc.body?.innerHTML?.length || 0} chars`);
         console.log(`   Has "product" keyword: ${bodyText.includes('product')}`);
         console.log(`   Has "price" keyword: ${bodyText.includes('price')}`);
-        console.log(`   HTML sample: ${fullBodySnippet}`);
+        
+        // AMAZON DEBUG: Add specific logging for Amazon
+        if (config.name.includes('Amazon')) {
+          console.log(`   🔍 AMAZON DEBUG:`);
+          console.log(`      Has s-result-item: ${fullBodySnippet.includes('s-result-item')}`);
+          console.log(`      Has data-asin: ${fullBodySnippet.includes('data-asin')}`);
+          console.log(`      Has a-price: ${fullBodySnippet.includes('a-price')}`);
+          console.log(`      Has captcha/robot: ${bodyText.includes('captcha') || bodyText.includes('robot')}`);
+          console.log(`      Page title: ${doc.querySelector('title')?.textContent || 'N/A'}`);
+        }
+        
+        console.log(`   HTML sample: ${fullBodySnippet.substring(0, 1000)}`);
         break;
       }
       
@@ -2186,7 +2233,8 @@ serve(async (req) => {
         const highest = Math.max(...prices);
         const average = prices.reduce((a: number, b: number) => a + b, 0) / prices.length;
         
-        await supabase.from('competitor_prices').insert({
+        // FIX: Use upsert to prevent duplicate records
+        await supabase.from('competitor_prices').upsert({
           baseline_id,
           merchant_id: baseline.merchant_id,
           marketplace: marketplaceKey,
@@ -2195,8 +2243,9 @@ serve(async (req) => {
           highest_price: highest,
           currency: baseline.currency,
           products_found: highSimilarityProducts.length,
-          fetch_status: 'success'
-        });
+          fetch_status: 'success',
+          last_updated: new Date().toISOString()
+        }, { onConflict: 'baseline_id,marketplace' });
         
         results.push({
           marketplace: result.marketplace,
@@ -2210,13 +2259,15 @@ serve(async (req) => {
       } else {
         failedMarketplaces.push(marketplaceKey);
         
-        await supabase.from('competitor_prices').insert({
+        // FIX: Use upsert to prevent duplicate records
+        await supabase.from('competitor_prices').upsert({
           baseline_id,
           merchant_id: baseline.merchant_id,
           marketplace: marketplaceKey,
           currency: baseline.currency,
-          fetch_status: result.status
-        });
+          fetch_status: result.status,
+          last_updated: new Date().toISOString()
+        }, { onConflict: 'baseline_id,marketplace' });
         
         results.push({
           marketplace: result.marketplace,
@@ -2323,7 +2374,8 @@ serve(async (req) => {
           
           const highSimilarityProducts = googleProducts.filter(p => p.similarity >= 0.60);
           const prices = highSimilarityProducts.map(p => p.price);
-          await supabase.from('competitor_prices').insert({
+          // FIX: Use upsert to prevent duplicate Google Shopping records
+          await supabase.from('competitor_prices').upsert({
             baseline_id,
             merchant_id: baseline.merchant_id,
             marketplace: 'google-shopping',
@@ -2332,8 +2384,9 @@ serve(async (req) => {
             highest_price: Math.max(...prices),
             currency: baseline.currency,
             products_found: highSimilarityProducts.length,
-            fetch_status: 'success'
-          });
+            fetch_status: 'success',
+            last_updated: new Date().toISOString()
+          }, { onConflict: 'baseline_id,marketplace' });
           
           results.push({
             marketplace: 'Google Shopping (Fallback)',
