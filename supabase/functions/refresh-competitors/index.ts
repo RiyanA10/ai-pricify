@@ -186,31 +186,54 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.google.com/search?tbm=shop&q=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 2500,
-      blockResources: true,
+      wait: 6000, // Increased wait time for dynamic content
+      blockResources: false, // Don't block resources for better rendering
       blockAds: true,
       countryCode: 'us'
     },
     selectors: {
+      // ROBUST structural selectors - prioritize data attributes over class names
       containers: [
-        '.sh-dgr__content',
-        '[data-docid]',
-        '.sh-dlr__list-result',
-        'div[data-sh-pr]'
+        // Primary structural selectors (stable)
+        '[data-pcu]',                           // Google product card unit
+        'div[data-docid]',                      // Product with document ID
+        'div[jsdata]',                          // Dynamic content containers
+        'div[data-async-context]',              // Async product cards
+        // Fallback structural patterns
+        'div.sh-dgr__grid-result',              // Shopping grid items
+        'div.sh-dlr__list-result',              // Shopping list items
+        '.sh-dgr__content',                     // Shopping content container
+        'div[data-sh-pr]',                      // Shopping product container
+        // Last resort: generic product structures
+        'div:has(h3):has(span):has(a)'          // Has title, price span, and link
       ],
       productName: [
         'h3',
-        '.sh-np__product-title',
-        'div[role="heading"]',
-        '[data-sh-pr] h4'
+        'h4',
+        '[role="heading"]',
+        'a[aria-label]',                        // Title in link aria-label
+        'a > div:first-child',                  // First div in link
+        '[data-snhf="0"]'                       // Google product title marker
       ],
       price: [
+        // Currency-aware selectors (most reliable for Saudi Arabia)
+        'span[aria-label*="SAR"]',
+        'span[aria-label*="ريال"]',
+        'span[aria-label*="price"]',
+        // Structural patterns
+        'span > b',                             // Bold inside span
+        'div > b',                              // Bold inside div
+        'b:first-of-type',                      // First bold element
+        // Data attributes
+        '[data-price]',
+        // Fallback class-based (may break)
         '.a8Pemb',
-        'span[aria-label*="$"]',
-        '[data-sh-pr] span:first-child',
+        'span[class*="price"]',
         'b'
       ]
-    }
+    },
+    waitForSelector: 'h3,div[data-docid],[data-pcu],div[jsdata]',
+    useStealthProxy: true
   },
   'amazon': {
     name: 'Amazon.sa',
@@ -1199,6 +1222,69 @@ async function scrapeGoogleSERP(
   }
 }
 
+/**
+ * TEXT-BASED FALLBACK: Extract price from container text using regex patterns
+ * Used when CSS selectors fail due to class name changes
+ */
+function extractPriceFromContainerText(containerText: string, currency: string): { price: number; method: string } | null {
+  if (!containerText) return null;
+  
+  // Currency-specific patterns for Saudi Arabia
+  const sarPatterns = [
+    { pattern: /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(?:SAR|SR|ر\.س|ريال)/i, name: 'SAR suffix' },
+    { pattern: /(?:SAR|SR|ر\.س|ريال)\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/i, name: 'SAR prefix' },
+  ];
+  
+  // USD patterns
+  const usdPatterns = [
+    { pattern: /\$\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/i, name: 'USD symbol' },
+    { pattern: /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(?:USD|dollars?)/i, name: 'USD suffix' },
+  ];
+  
+  // Generic price patterns (last resort)
+  const genericPatterns = [
+    { pattern: /\b(\d{1,3}(?:,\d{3})*\.\d{2})\b/, name: 'decimal price' },
+    { pattern: /\b(\d{4,6})\b/, name: 'large number' }, // 1000-999999 range
+  ];
+  
+  const patterns = currency === 'SAR' 
+    ? [...sarPatterns, ...genericPatterns]
+    : [...usdPatterns, ...genericPatterns];
+  
+  for (const { pattern, name } of patterns) {
+    const match = containerText.match(pattern);
+    if (match && match[1]) {
+      const price = parseFloat(match[1].replace(/,/g, ''));
+      // Validate it's a reasonable price (not storage size like 256, 512)
+      if (!isNaN(price) && price >= 100 && price < 100000) {
+        return { price, method: name };
+      }
+    }
+  }
+  
+  return null;
+}
+
+/**
+ * TEXT-BASED FALLBACK: Extract product name from container
+ * Looks for heading-like text or first substantial text block
+ */
+function extractNameFromContainerText(containerText: string): string | null {
+  if (!containerText) return null;
+  
+  // Split by newlines and find first substantial line (likely the title)
+  const lines = containerText.split(/[\n\r]+/).map(l => l.trim()).filter(l => l.length > 10 && l.length < 200);
+  
+  // First line that looks like a product name (not price, not "from store")
+  for (const line of lines) {
+    if (!/^\d/.test(line) && !/^from\s/i.test(line) && !/^SAR|^SR|^\$/i.test(line)) {
+      return line;
+    }
+  }
+  
+  return lines[0] || null;
+}
+
 async function scrapeGoogleShopping(
   productName: string,
   baselinePrice: number,
@@ -1215,7 +1301,7 @@ async function scrapeGoogleShopping(
   const isRefurbished = productName.toLowerCase().includes('refurbished') || productName.toLowerCase().includes('renewed');
   const smartQuery = buildSearchQuery(productName, isRefurbished);
   
-  console.log(`\n🛒 Google Shopping Search (stealth_proxy)`);
+  console.log(`\n🛒 Google Shopping Search (ENHANCED SELECTORS)`);
   console.log(`   Original: "${productName}"`);
   console.log(`   Smart Query: "${smartQuery.slice(0, 100)}..."`);
   
@@ -1228,7 +1314,8 @@ async function scrapeGoogleShopping(
     sbUrl.searchParams.set('custom_google', 'true');
     sbUrl.searchParams.set('stealth_proxy', 'true');
     sbUrl.searchParams.set('render_js', 'true');
-    sbUrl.searchParams.set('wait', '5000');
+    sbUrl.searchParams.set('wait', '6000'); // Increased wait
+    sbUrl.searchParams.set('wait_browser', 'networkidle2'); // Wait for network idle
     sbUrl.searchParams.set('country_code', currency === 'SAR' ? 'sa' : 'us');
     
     const response = await fetch(sbUrl.toString());
@@ -1246,54 +1333,139 @@ async function scrapeGoogleShopping(
     const doc = parser.parseFromString(html, 'text/html');
     if (!doc) return [];
     
-    const containers = trySelectAll(doc, [
-      'div[data-sh-pr]', '.sh-dgr__content', '[data-docid]', '.sh-dlr__list-result', 'div.sh-dgr__grid-result'
-    ]);
+    // ROBUST container selectors - prioritize stable data attributes
+    const containerSelectors = [
+      '[data-pcu]',                    // Google product card unit (stable)
+      'div[data-docid]',               // Product with document ID (stable)
+      'div[jsdata]',                   // Dynamic content containers
+      'div[data-async-context]',       // Async product cards
+      'div.sh-dgr__grid-result',       // Shopping grid items
+      'div.sh-dlr__list-result',       // Shopping list items
+      '.sh-dgr__content',              // Shopping content container
+      'div[data-sh-pr]',               // Shopping product container
+    ];
+    
+    let containers = trySelectAll(doc, containerSelectors);
+    
+    // FALLBACK: If no containers found, try generic product-like structures
+    if (containers.length === 0) {
+      console.log(`⚠️ Primary selectors failed, trying generic fallback...`);
+      
+      // Look for any div that has both a heading (h3/h4) and text containing price
+      const allDivs = Array.from(doc.querySelectorAll('div'));
+      containers = allDivs.filter((div: any) => {
+        const hasHeading = div.querySelector('h3') || div.querySelector('h4') || div.querySelector('[role="heading"]');
+        const text = div.textContent || '';
+        const hasPrice = /\d{3,6}/.test(text) && (text.includes('SAR') || text.includes('SR') || text.includes('$') || /\d+\.\d{2}/.test(text));
+        const hasLink = div.querySelector('a[href]');
+        return hasHeading && hasPrice && hasLink;
+      }).slice(0, 50); // Limit to prevent too many containers
+      
+      if (containers.length > 0) {
+        console.log(`✅ Fallback found ${containers.length} product-like containers`);
+      }
+    }
     
     if (containers.length === 0) {
-      const bodySnippet = doc.body?.innerHTML?.substring(0, 500).replace(/\s+/g, ' ') || '';
+      const bodySnippet = doc.body?.innerHTML?.substring(0, 800).replace(/\s+/g, ' ') || '';
       console.log(`⚠️ No Shopping results found. HTML sample: ${bodySnippet}`);
+      
+      // Log available data attributes for debugging
+      const dataAttrs = new Set<string>();
+      doc.querySelectorAll('div[data-*]').forEach((el: any) => {
+        Array.from(el.attributes || []).forEach((attr: any) => {
+          if (attr.name.startsWith('data-')) dataAttrs.add(attr.name);
+        });
+      });
+      console.log(`   📊 Available data attributes: ${[...dataAttrs].slice(0, 10).join(', ')}`);
+      
       return [];
     }
     
-    console.log(`✓ Found ${containers.length} Shopping results`);
+    console.log(`✓ Found ${containers.length} Shopping containers`);
+    
+    // Log first container structure for debugging future selector issues
+    if (containers.length > 0) {
+      const firstContainer = containers[0] as any;
+      const containerHtml = firstContainer.outerHTML?.slice(0, 400) || '';
+      console.log(`   📝 First container sample: ${containerHtml.replace(/\s+/g, ' ')}`);
+    }
     
     const products: ScrapedProduct[] = [];
     const normalizedBaseline = normalizeProductName(baselineFullName);
     
-    for (let i = 0; i < Math.min(containers.length, 30); i++) {
-      const container = containers[i];
+    // ROBUST title selectors
+    const titleSelectors = [
+      'h3',
+      'h4',
+      '[role="heading"]',
+      'a[aria-label]',
+      '[data-snhf="0"]',
+      'a > div:first-child',
+      '.sh-np__product-title',
+    ];
+    
+    // ROBUST price selectors with currency awareness
+    const priceSelectors = [
+      'span[aria-label*="SAR"]',
+      'span[aria-label*="ريال"]',
+      'span[aria-label*="price"]',
+      'span[aria-label*="$"]',
+      'span > b',
+      'div > b',
+      'b:first-of-type',
+      '[data-price]',
+      '.a8Pemb',
+      'span[class*="price"]',
+      'b',
+    ];
+    
+    for (let i = 0; i < Math.min(containers.length, 40); i++) {
+      const container = containers[i] as any;
+      const containerText = container.textContent || '';
       
-      const nameEl = trySelectOne(container, ['h3', 'h4', '.sh-np__product-title', 'div[role="heading"]', '[data-sh-pr] h3', '[data-sh-pr] h4']);
-      if (!nameEl) continue;
+      // TRY 1: CSS Selector-based extraction
+      let name: string | null = null;
+      const nameEl = trySelectOne(container, titleSelectors);
+      if (nameEl) {
+        name = nameEl.textContent?.trim() || nameEl.getAttribute?.('aria-label')?.trim();
+      }
       
-      const name = nameEl.textContent?.trim();
+      // TRY 2: Text-based fallback for name
+      if (!name) {
+        name = extractNameFromContainerText(containerText);
+        if (name) console.log(`   📝 Text fallback name: "${name.slice(0, 50)}..."`);
+      }
+      
       if (!name) continue;
       
-      // FIX 2: Broader structural price selectors (avoid class-name drift)
-      const priceEl = trySelectOne(container, [
-        '[data-sh-pr] span[aria-label*="price"]',  // Structural - price attribute
-        'span[aria-label*="SAR"]',                  // Currency-based for Saudi
-        'span[aria-label*="$"]',                    // Currency-based for US
-        '[class*="price"] b',                       // Price class with bold
-        '.a8Pemb',                                  // Original (may break)
-        'b',                                        // Bold text fallback
-        '[class*="price"]'                          // Any price class
-      ]);
-      if (!priceEl) continue;
+      // TRY 1: CSS Selector-based price extraction
+      let extractedPrice: { price: number; confidence: number } | null = null;
+      const priceEl = trySelectOne(container, priceSelectors);
+      if (priceEl) {
+        const priceText = priceEl.textContent?.trim() || priceEl.getAttribute?.('aria-label')?.trim();
+        if (priceText) {
+          extractedPrice = extractPrice(priceText, currency, baselineFullName);
+        }
+      }
       
-      const priceText = priceEl.textContent?.trim();
-      if (!priceText) continue;
+      // TRY 2: Text-based fallback for price
+      if (!extractedPrice || extractedPrice.price <= 0) {
+        const textPrice = extractPriceFromContainerText(containerText, currency);
+        if (textPrice) {
+          extractedPrice = { price: textPrice.price, confidence: 0.7 };
+          console.log(`   💰 Text fallback price: ${textPrice.price} (${textPrice.method})`);
+        }
+      }
       
-      const extracted = extractPrice(priceText, currency, baselineFullName);
-      if (!extracted || extracted.price <= 0) continue;
+      if (!extractedPrice || extractedPrice.price <= 0) continue;
       
-      // FIX 4: Apply Floor Rule validation
-      if (!isValidPrice(extracted.price, baselinePrice)) continue;
+      // Apply Floor Rule validation
+      if (!isValidPrice(extractedPrice.price, baselinePrice)) continue;
       
       const normalizedCompetitor = normalizeProductName(name);
       const similarity = calculateSimilarity(normalizedBaseline, normalizedCompetitor);
-      const priceRatio = extracted.price / baselinePrice;
+      const priceRatio = extractedPrice.price / baselinePrice;
       
       let productUrl: string | undefined;
       let sourceStore: string = 'Google Shopping';
@@ -1305,23 +1477,17 @@ async function scrapeGoogleShopping(
             const fullUrl = href.startsWith('http') ? href : `https://www.google.com${href}`;
             productUrl = fullUrl;
             
-            // FIX: Try to extract store from URL first
             const urlStore = extractStoreFromUrl(fullUrl);
             
-            // If URL returns "Google" (redirect), try to extract from container HTML text
             if (urlStore === 'Google' || urlStore === 'Unknown') {
-              const containerText = container.textContent || '';
-              // Look for "from [Store]" pattern in text (e.g., "from Amazon.sa", "from noon")
+              // Extract store from container text
               const fromMatch = containerText.match(/from\s+([A-Za-z][A-Za-z0-9\s\.]+?)(?:\s*[·•\|]|\s*SAR|\s*\$|\s*\d|$)/i);
               if (fromMatch && fromMatch[1]) {
                 sourceStore = fromMatch[1].trim();
-                console.log(`   📍 Extracted store from HTML: "${sourceStore}"`);
               } else {
-                // Try merchant/seller patterns
                 const sellerMatch = containerText.match(/(?:sold by|seller|merchant|shop)[\s:]+([A-Za-z][A-Za-z0-9\s\.]+?)(?:\s*[·•\|]|\s*SAR|\s*\$|\s*\d|$)/i);
                 if (sellerMatch && sellerMatch[1]) {
                   sourceStore = sellerMatch[1].trim();
-                  console.log(`   📍 Extracted seller from HTML: "${sourceStore}"`);
                 }
               }
             } else {
@@ -1340,7 +1506,7 @@ async function scrapeGoogleShopping(
       
       products.push({
         name,
-        price: extracted.price,
+        price: extractedPrice.price,
         similarity,
         priceRatio,
         url: productUrl,
@@ -1349,7 +1515,15 @@ async function scrapeGoogleShopping(
     }
     
     console.log(`✓ Extracted ${products.length} products from Google Shopping`);
-    return products.sort((a, b) => b.similarity - a.similarity).slice(0, 20);
+    
+    // Log extraction stats for debugging
+    if (products.length > 0) {
+      const stores = [...new Set(products.map(p => p.sourceStore))];
+      console.log(`   📊 Stores found: ${stores.join(', ')}`);
+      console.log(`   💰 Price range: ${Math.min(...products.map(p => p.price))} - ${Math.max(...products.map(p => p.price))} ${currency}`);
+    }
+    
+    return products.sort((a, b) => b.similarity - a.similarity).slice(0, 25);
     
   } catch (error: any) {
     console.error(`❌ Google Shopping error:`, error.message);
