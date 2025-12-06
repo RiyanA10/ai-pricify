@@ -774,8 +774,11 @@ function extractPrice(text: string, expectedCurrency: string, productName?: stri
   }
   
   const patterns = [
-    /(?:SAR|SR|ریال|ر\.س\.?)\s*([0-9,]+\.?[0-9]*)/i,
-    /([0-9,]+\.?[0-9]*)\s*(?:SAR|SR|ریال|ر\.س\.?)/i,
+    // NEW: VAT indicator (common on Extra.com with SVG currency symbols)
+    /(\d{1,3}(?:,\d{3})*\.?\d*)\s*(?:Incl\.?\s*VAT|VAT)/i,
+    // SAR patterns with ﷼ symbol
+    /(?:SAR|SR|ریال|ر\.س\.?|﷼)\s*([0-9,]+\.?[0-9]*)/i,
+    /([0-9,]+\.?[0-9]*)\s*(?:SAR|SR|ریال|ر\.س\.?|﷼)/i,
     /\$\s*([0-9,]+\.?[0-9]*)/,
     /([0-9,]+\.?[0-9]*)\s*(?:USD|usd)/,
     /\b([0-9,]+\.[0-9]{2})\b/,
@@ -808,7 +811,7 @@ function extractPrice(text: string, expectedCurrency: string, productName?: stri
       if (!isNaN(price) && price > 0) {
         let confidence = 1.0 - (i * 0.1);
         
-        if (expectedCurrency === 'SAR' && match[0].match(/SAR|SR|ریال|ر\.س/i)) {
+        if (expectedCurrency === 'SAR' && match[0].match(/SAR|SR|ریال|ر\.س|﷼|Incl\.?\s*VAT/i)) {
           confidence += 0.2;
         } else if (expectedCurrency === 'USD' && match[0].match(/\$|USD/i)) {
           confidence += 0.2;
@@ -1012,6 +1015,35 @@ interface ScrapeResult {
   status: 'success' | 'no_data' | 'timeout' | 'error';
   elapsed: number;
   error?: string;
+}
+
+/**
+ * Filters out prices that are 5x lower than the average
+ * @param products Array of scraped products
+ * @returns Filtered products without outliers
+ */
+function filterLowestPriceOutliers(products: ScrapedProduct[]): ScrapedProduct[] {
+  if (products.length < 2) return products;
+  
+  // Calculate average price
+  const totalPrice = products.reduce((sum, p) => sum + p.price, 0);
+  const averagePrice = totalPrice / products.length;
+  const threshold = averagePrice / 5;
+  
+  // Filter out products with price < threshold (5x lower than average)
+  const filtered = products.filter(p => {
+    if (p.price < threshold) {
+      console.log(`   ⚠️ OUTLIER REJECTED: ${p.price} SAR (< ${threshold.toFixed(0)} threshold, avg: ${averagePrice.toFixed(0)})`);
+      return false;
+    }
+    return true;
+  });
+  
+  if (filtered.length < products.length) {
+    console.log(`   🧹 Outlier filter: ${products.length} → ${filtered.length} products`);
+  }
+  
+  return filtered;
 }
 
 // ========================================
@@ -1231,8 +1263,10 @@ function extractPriceFromContainerText(containerText: string, currency: string):
   
   // Currency-specific patterns for Saudi Arabia
   const sarPatterns = [
-    { pattern: /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(?:SAR|SR|ر\.س|ريال)/i, name: 'SAR suffix' },
-    { pattern: /(?:SAR|SR|ر\.س|ريال)\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/i, name: 'SAR prefix' },
+    // NEW: Pattern for Extra.com and sites using SVG currency symbols
+    { pattern: /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(?:Incl\.?\s*VAT|VAT|incl)/i, name: 'VAT suffix' },
+    { pattern: /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(?:SAR|SR|ر\.س|ريال|﷼)/i, name: 'SAR suffix' },
+    { pattern: /(?:SAR|SR|ر\.س|ريال|﷼)\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/i, name: 'SAR prefix' },
   ];
   
   // USD patterns
@@ -2534,7 +2568,19 @@ serve(async (req) => {
       if (result.products.length > 0) {
         foundValidProducts = true;
         
-        const productRows = result.products.map((product: ScrapedProduct, index: number) => ({
+        // Apply price outlier detection (5x from average)
+        let filteredProducts = result.products;
+        if (result.products.length >= 2) {
+          filteredProducts = filterLowestPriceOutliers(result.products);
+        }
+        
+        if (filteredProducts.length === 0) {
+          console.log(`   ⚠️ All products filtered as outliers for ${result.marketplace}`);
+          failedMarketplaces.push(marketplaceKey);
+          continue;
+        }
+        
+        const productRows = filteredProducts.map((product: ScrapedProduct, index: number) => ({
           baseline_id,
           merchant_id: baseline.merchant_id,
           marketplace: marketplaceKey === 'google-shopping' && product.sourceStore && product.sourceStore !== 'Unknown'
@@ -2684,6 +2730,11 @@ serve(async (req) => {
           if (beforeSimilarityFilter > googleProducts.length) {
             console.log(`🎯 Google similarity filter: ${beforeSimilarityFilter} → ${googleProducts.length} products`);
           }
+        }
+        
+        // Apply price outlier detection (5x from average)
+        if (googleProducts.length >= 2) {
+          googleProducts = filterLowestPriceOutliers(googleProducts);
         }
         
         if (googleProducts.length > 0) {
