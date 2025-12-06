@@ -391,7 +391,27 @@ function calculateWeightedMarketStats(
   };
 }
 
-// Calculate profit-maximizing price using elasticity theory
+// Category-aware zone multipliers for velocity-based pricing
+function getZoneMultipliers(category: string): { zoneA: number; zoneB: number } {
+  const cat = category.toLowerCase();
+  
+  // High Elasticity: Shoppers are price-sensitive (Tech, Appliances)
+  if (cat.includes('electronic') || cat.includes('computer') || 
+      cat.includes('appliance') || cat.includes('mobile') || cat.includes('phone')) {
+    return { zoneA: 3.5, zoneB: 2.2 }; 
+  }
+  // Low Elasticity: Shoppers are brand-loyal (Beauty, Baby, Food)
+  else if (cat.includes('beauty') || cat.includes('health') || 
+           cat.includes('baby') || cat.includes('food') || cat.includes('grocery')) {
+    return { zoneA: 1.8, zoneB: 1.3 };
+  }
+  // Medium Elasticity: Default (Fashion, Home, etc.)
+  else {
+    return { zoneA: 2.5, zoneB: 1.8 };
+  }
+}
+
+// Calculate profit-maximizing price using elasticity theory + Zone Velocity Model
 function calculateProfitMaximizingPrice(
   cost: number,
   elasticity: number,
@@ -399,11 +419,16 @@ function calculateProfitMaximizingPrice(
   marketAverage: number,
   marketLowest: number,
   marketHighest: number,
-  inflationRate: number
+  inflationRate: number,
+  category: string
 ): { 
   theoreticalOptimal: number;
   marketAdjusted: number;
   reasoning: string;
+  zoneDetected: string;
+  breakEvenMultiplier: number;
+  marketPotential: number;
+  isRiskAdjusted: boolean;
 } {
   // Apply inflation adjustment to market boundaries FIRST
   const inflationMultiplier = 1 + inflationRate;
@@ -429,7 +454,6 @@ function calculateProfitMaximizingPrice(
   let suggestedPrice = inflationAdjustedAverage;
   
   // Apply elasticity influence: blend theoretical if it suggests better pricing
-  const profitMargin = (suggestedPrice - cost) / cost;
   if (theoreticalOptimal > cost * 1.15 && theoreticalOptimal < inflationAdjustedAverage) {
     // Theoretical suggests lower price could maximize profit - blend 40% toward it
     suggestedPrice = (inflationAdjustedAverage * 0.6) + (theoreticalOptimal * 0.4);
@@ -446,7 +470,7 @@ function calculateProfitMaximizingPrice(
   
   let reasoning = '';
   
-  // Apply hard constraints
+  // Apply hard constraints to suggested price
   if (suggestedPrice < absoluteMin) {
     suggestedPrice = absoluteMin;
     reasoning = `Set to minimum 15% profit margin (${absoluteMin.toFixed(0)}) for business viability`;
@@ -458,17 +482,90 @@ function calculateProfitMaximizingPrice(
     reasoning = `Optimized at ${percentBelowHighest}% below market highest based on inflation-adjusted average`;
   }
   
-  // FINAL SAFETY CHECK: Ensure we NEVER exceed market highest
-  suggestedPrice = Math.min(suggestedPrice, absoluteMax);
+  // --- NEW: Category-Aware Zone Velocity Logic ---
+  console.log(`\n🚀 === Zone Velocity Analysis ===`);
+  console.log(`   Category: ${category}`);
   
-  console.log(`✅ Final suggested price: ${suggestedPrice.toFixed(2)}`);
+  // 1. Get Multipliers based on Category
+  const { zoneA, zoneB } = getZoneMultipliers(category);
+  console.log(`   Zone multipliers: A=${zoneA}x, B=${zoneB}x`);
+  
+  // 2. Calculate Required Break-Even Volume
+  const currentUnitMargin = currentPrice - cost;
+  const newUnitMargin = suggestedPrice - cost;
+  const breakEvenMultiplier = currentUnitMargin / newUnitMargin;
+  
+  console.log(`   Current margin: ${currentUnitMargin.toFixed(2)} per unit`);
+  console.log(`   New margin: ${newUnitMargin.toFixed(2)} per unit`);
+  console.log(`   Break-even multiplier needed: ${breakEvenMultiplier.toFixed(2)}x`);
+
+  // 3. Determine Market Zone & Potential
+  let marketPotential = 1.0; 
+  let zoneDetected = 'C';
+
+  // ZONE A: Aggressive (Within 5% of Market Lowest)
+  if (inflationAdjustedLowest && suggestedPrice <= inflationAdjustedLowest * 1.05) {
+    marketPotential = zoneA;
+    zoneDetected = 'A';
+    console.log(`🚀 Zone A Detected: Aggressive Pricing (within 5% of lowest)`);
+  }
+  // ZONE B: Competitive (Below Market Average)
+  else if (suggestedPrice <= inflationAdjustedAverage) {
+    marketPotential = zoneB;
+    zoneDetected = 'B';
+    console.log(`⚖️ Zone B Detected: Competitive Pricing (below average)`);
+  }
+  // ZONE C: Passive (Above Average)
+  else {
+    marketPotential = 1.0;
+    zoneDetected = 'C';
+    console.log(`💎 Zone C Detected: Premium Pricing (above average)`);
+  }
+
+  console.log(`📊 Velocity Check: Need ${breakEvenMultiplier.toFixed(2)}x volume. Market Potential: ${marketPotential}x`);
+
+  // 4. The Decision Engine
+  let finalPrice = currentPrice;
+  let isRiskAdjusted = false;
+
+  // IF gain outweighs pain...
+  if (marketPotential >= breakEvenMultiplier) {
+    finalPrice = suggestedPrice; // Accept the market-driven price
+    console.log(`✅ Decision: ACCEPT market price (${marketPotential}x potential >= ${breakEvenMultiplier.toFixed(2)}x needed)`);
+    reasoning = `Zone ${zoneDetected}: ${marketPotential}x expected volume gain justifies price adjustment. ${reasoning}`;
+  } else {
+    // ELSE: Risk is too high. Use Fallback (Midway Price)
+    finalPrice = (currentPrice + suggestedPrice) / 2;
+    isRiskAdjusted = true;
+    console.log(`⚠️ Decision: MIDWAY fallback (${marketPotential}x potential < ${breakEvenMultiplier.toFixed(2)}x needed)`);
+    console.log(`   Midway price: ${finalPrice.toFixed(2)}`);
+    reasoning = `Zone ${zoneDetected}: Risk-adjusted to midway (${finalPrice.toFixed(0)}) - ${breakEvenMultiplier.toFixed(1)}x volume needed but only ${marketPotential}x expected`;
+  }
+
+  // 5. Final Floor Check (Absolute Safety)
+  if (finalPrice < absoluteMin) {
+    finalPrice = absoluteMin;
+    isRiskAdjusted = true;
+    console.log(`🛡️ Floor applied: ${absoluteMin.toFixed(2)} (minimum 15% margin)`);
+    reasoning = `Floor applied: minimum 15% profit margin maintained`;
+  }
+  
+  // Final ceiling check
+  finalPrice = Math.min(finalPrice, absoluteMax);
+  
+  console.log(`\n✅ Final suggested price: ${finalPrice.toFixed(2)}`);
+  console.log(`   Zone: ${zoneDetected} | Risk-adjusted: ${isRiskAdjusted}`);
   console.log(`   Reasoning: ${reasoning}`);
-  console.log(`   Verification: ${suggestedPrice <= inflationAdjustedHighest ? '✓ Below market highest' : '✗ EXCEEDS MARKET HIGHEST!'}`);
+  console.log(`   Verification: ${finalPrice <= inflationAdjustedHighest ? '✓ Below market highest' : '✗ EXCEEDS MARKET HIGHEST!'}`);
   
   return {
     theoreticalOptimal,
-    marketAdjusted: suggestedPrice,
-    reasoning
+    marketAdjusted: finalPrice,
+    reasoning,
+    zoneDetected,
+    breakEvenMultiplier,
+    marketPotential,
+    isRiskAdjusted
   };
 }
 
@@ -565,7 +662,7 @@ async function calculateOptimalPrice(
     return;
   }
 
-  // Calculate profit-maximizing price (inflation already applied inside)
+  // Calculate profit-maximizing price with Zone Velocity Model (inflation already applied inside)
   const profitCalc = calculateProfitMaximizingPrice(
     baseline.cost_per_unit,
     baseline.base_elasticity,
@@ -573,45 +670,37 @@ async function calculateOptimalPrice(
     marketStats.average,
     marketStats.lowest,
     marketStats.highest,
-    inflationRate
+    inflationRate,
+    baseline.category // NEW: Pass category for zone multipliers
   );
   
   const inflationAdjustment = 1 + inflationRate;
-  let suggestedPrice = Math.round(profitCalc.marketAdjusted * 100) / 100;
+  
+  // Zone Velocity Model now handles the decision - use the result directly
+  let finalSuggestedPrice = Math.round(profitCalc.marketAdjusted * 100) / 100;
   
   // Calculate competitor factor for context
   const competitorFactor = marketStats.average / baseline.current_price;
   const calibratedElasticity = baseline.base_elasticity * (1 + (competitorFactor - 1) * 0.3);
   
-  // Calculate profit projections
+  // Calculate profit projections with the zone-adjusted price
   const currentProfit = (baseline.current_price - baseline.cost_per_unit) * baseline.current_quantity;
   
-  // 🆕 SAFETY CHECK: Never suggest a price that reduces profit
-  let finalSuggestedPrice = suggestedPrice;
-  let hasWarning = false;
-  let warningMessage = '';
-  
-  // Calculate expected profit with suggested price
+  // Calculate expected profit with zone-adjusted suggested price
   const newQuantity = baseline.current_quantity * Math.pow(
-    baseline.current_price / suggestedPrice,
+    baseline.current_price / finalSuggestedPrice,
     calibratedElasticity
   );
-  const newProfit = (suggestedPrice - baseline.cost_per_unit) * newQuantity;
+  const newProfit = (finalSuggestedPrice - baseline.cost_per_unit) * newQuantity;
   const profitIncrease = newProfit - currentProfit;
   const profitIncreasePercent = (profitIncrease / currentProfit) * 100;
   
-  // If suggested price would reduce profit, keep current price
-  if (profitIncrease < 0) {
-    console.log('⚠️ SAFETY CHECK: Suggested price would reduce profit!');
-    console.log(`   Current profit: ${currentProfit.toFixed(2)}`);
-    console.log(`   Expected profit with ${suggestedPrice}: ${newProfit.toFixed(2)}`);
-    console.log(`   Profit change: ${profitIncrease.toFixed(2)} (${profitIncreasePercent.toFixed(1)}%)`);
-    console.log('   → Keeping current price to maintain profitability');
-    
-    // Keep current price but still show the market analysis
-    finalSuggestedPrice = baseline.current_price;
-    hasWarning = true;
-    warningMessage = `Market prices (avg: ${marketStats.average.toFixed(0)} ${baseline.currency}) are lower than your current price. Lowering to match market would reduce profit by ${Math.abs(profitIncreasePercent).toFixed(1)}%. Current price maintained for profitability.`;
+  // Set warning if risk-adjusted (midway fallback was applied)
+  let hasWarning = profitCalc.isRiskAdjusted;
+  let warningMessage = '';
+  
+  if (profitCalc.isRiskAdjusted) {
+    warningMessage = `Zone ${profitCalc.zoneDetected}: Risk-adjusted pricing applied. Market potential (${profitCalc.marketPotential}x) is lower than break-even requirement (${profitCalc.breakEvenMultiplier.toFixed(1)}x). Midway price used to balance competitiveness and profitability.`;
   }
   
   console.log('=== Price Calculation Complete ===');
