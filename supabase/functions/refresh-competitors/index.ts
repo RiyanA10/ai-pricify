@@ -178,6 +178,8 @@ interface MarketplaceConfig {
   waitForSelector?: string;
   // FIX 3: Enable stealth proxy for sites that block scrapers
   useStealthProxy?: boolean;
+  // FIX 1: Enable Google-First discovery for sites that block direct search scraping
+  useGoogleFirstDiscovery?: boolean;
 }
 
 const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
@@ -186,53 +188,74 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
     searchUrl: 'https://www.google.com/search?tbm=shop&q=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 6000, // Increased wait time for dynamic content
+      wait: 7000, // Increased wait time for dynamic content
       blockResources: false, // Don't block resources for better rendering
       blockAds: true,
       countryCode: 'us'
     },
     selectors: {
-      // ROBUST structural selectors - prioritize data attributes over class names
+      // FIX 3: ROBUST structural selectors - prioritize stable data attributes over class names
       containers: [
-        // Primary structural selectors (stable)
+        // Primary structural selectors (most stable - data attributes)
         '[data-pcu]',                           // Google product card unit
         'div[data-docid]',                      // Product with document ID
         'div[jsdata]',                          // Dynamic content containers
         'div[data-async-context]',              // Async product cards
-        // Fallback structural patterns
+        'div[data-ved]',                        // Google tracking data attribute
+        'div[data-idx]',                        // Index-based product containers
+        // Shopping-specific patterns
         'div.sh-dgr__grid-result',              // Shopping grid items
         'div.sh-dlr__list-result',              // Shopping list items
         '.sh-dgr__content',                     // Shopping content container
         'div[data-sh-pr]',                      // Shopping product container
-        // Last resort: generic product structures
-        'div:has(h3):has(span):has(a)'          // Has title, price span, and link
+        '.sh-pr__product-results-grid > div',   // Direct children of results grid
+        // Semantic HTML patterns (stable)
+        'article[data-docid]',                  // Article with product ID
+        'section[data-idx]',                    // Section with index
+        // Fallback structural patterns
+        'div:has(h3):has(span[aria-label])',    // Has heading and price aria-label
+        'div:has([role="heading"]):has(a[href*="url?q="])', // Has heading and shopping link
+        'div:has(h3):has(b)'                    // Has heading and bold (price)
       ],
       productName: [
+        // Semantic/accessibility selectors (stable)
+        '[role="heading"]',
         'h3',
         'h4',
-        '[role="heading"]',
         'a[aria-label]',                        // Title in link aria-label
+        // Data attribute selectors
+        '[data-snhf="0"]',                      // Google product title marker
+        '[data-name]',                          // Name data attribute
+        // Structural patterns
         'a > div:first-child',                  // First div in link
-        '[data-snhf="0"]'                       // Google product title marker
+        'a[href*="url?q="] > *:first-child',    // First child of shopping link
+        // Class-based fallbacks (may break)
+        '.sh-np__product-title',
+        '[class*="title"]'
       ],
       price: [
-        // Currency-aware selectors (most reliable for Saudi Arabia)
+        // FIX 3: Currency-aware aria-label selectors (most reliable)
         'span[aria-label*="SAR"]',
         'span[aria-label*="ريال"]',
+        'span[aria-label*="SR "]',
         'span[aria-label*="price"]',
-        // Structural patterns
-        'span > b',                             // Bold inside span
-        'div > b',                              // Bold inside div
-        'b:first-of-type',                      // First bold element
-        // Data attributes
+        'span[aria-label*="$"]',
+        // Data attribute selectors
         '[data-price]',
-        // Fallback class-based (may break)
+        '[data-value]',
+        // Structural patterns (stable)
+        'span > b',                             // Bold inside span (common for price)
+        'div > b:first-child',                  // First bold in div
+        'b:first-of-type',                      // First bold element
+        // Shopping-specific classes (may change)
         '.a8Pemb',
+        '.kHxwFf',
         'span[class*="price"]',
+        // Last resort
         'b'
       ]
     },
-    waitForSelector: 'h3,div[data-docid],[data-pcu],div[jsdata]',
+    waitForSelector: 'h3,div[data-docid],[data-pcu],div[jsdata],[role="heading"],div[data-ved]',
     useStealthProxy: true
   },
   'amazon': {
@@ -387,7 +410,10 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
         '[class*="name"]'
       ],
       price: [
+        // FIX 2: Extra.com uses SVG for currency - focus on number patterns near VAT text
         '[data-qa="product-price"]',
+        '.c_product-price',              // Extra's current price class
+        '.product-price__value',         // Price value container
         'span[data-testid="product-price"]',
         '.product-listing__price span',
         'span[class*="price--current"]',
@@ -406,22 +432,25 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
         'strong'
       ]
     },
-    // FIX 3: Wait for PRICE elements
-    waitForSelector: '.product-price,.price-box,[class*="Price"],[data-qa="product-price"]',
-    useStealthProxy: true // Saudi site - enable stealth
+    // FIX 3: Wait for PRICE elements - add Extra-specific selectors
+    waitForSelector: '.product-price,.c_product-price,.price-box,[class*="Price"],[data-qa="product-price"],.product-price__value',
+    useStealthProxy: true, // Saudi site - enable stealth
+    // FIX 1: Enable Google-First discovery for Extra (search pages are blocked)
+    useGoogleFirstDiscovery: true
   },
   'jarir': {
     name: 'Jarir',
     searchUrl: 'https://www.jarir.com/sa-en/catalogsearch/result/?q=',
     scrapingBeeOptions: {
       renderJs: true,
-      wait: 5000,
+      wait: 6000, // Increased wait time
       blockResources: false,
       blockAds: true,
       countryCode: 'sa'
     },
     selectors: {
       containers: [
+        // Magento-specific selectors
         '.product-items .product-item',
         '.products.list .product-item',
         'li.product-item',
@@ -430,6 +459,10 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
         'ol.products.list .item',
         'div[data-product-sku]',
         'article.product',
+        // Jarir-specific selectors
+        '.product-card',
+        '.product-listing-item',
+        '[data-product-id]',
         'a[href*="/product/"]',
         'div:has(a[href]):has(.price)',
         'div[class*="product"]'
@@ -443,10 +476,13 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
         'span.product-item-link',
         'a[class*="product-name"]',
         '.product-title',
+        '.product-card__title',
         'a[href*="/product/"]',
-        'h2 a', 'h3 a'
+        'h2 a', 'h3 a',
+        'h1' // Product detail page
       ],
       price: [
+        // Magento price selectors
         '.price-box .price',
         'span[data-price-amount]',
         '[data-price-type="finalPrice"] .price',
@@ -459,13 +495,18 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
         'span.special-price span.price',
         '.final-price',
         '.sale-price',
+        // Jarir-specific selectors
+        '.product-price',
+        '.product-info-price .price',
         '[class*="price"] span',
         'strong'
       ]
     },
-    // FIX 3: Wait for Magento price elements
-    waitForSelector: '.price-box .price,span[data-price-amount],[data-price-type="finalPrice"]',
-    useStealthProxy: true // Saudi site - enable stealth
+    // FIX 3: Wait for Magento price elements with more options
+    waitForSelector: '.price-box .price,span[data-price-amount],[data-price-type="finalPrice"],.product-price,.product-info-price',
+    useStealthProxy: true, // Saudi site - enable stealth
+    // FIX 1: Enable Google-First discovery for Jarir (search pages often fail)
+    useGoogleFirstDiscovery: true
   },
   'amazon-us': {
     name: 'Amazon.com',
@@ -1257,16 +1298,21 @@ async function scrapeGoogleSERP(
 /**
  * TEXT-BASED FALLBACK: Extract price from container text using regex patterns
  * Used when CSS selectors fail due to class name changes
+ * FIX 2: Enhanced for Extra.com which uses SVG for currency symbols
  */
 function extractPriceFromContainerText(containerText: string, currency: string): { price: number; method: string } | null {
   if (!containerText) return null;
   
   // Currency-specific patterns for Saudi Arabia
+  // FIX 2: Extra.com uses SVG for Saudi Riyal symbol - text appears as "1,710 Incl. VAT" without currency
   const sarPatterns = [
-    // NEW: Pattern for Extra.com and sites using SVG currency symbols
-    { pattern: /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(?:Incl\.?\s*VAT|VAT|incl)/i, name: 'VAT suffix' },
+    // HIGHEST PRIORITY: Pattern for Extra.com and sites using SVG currency symbols
+    { pattern: /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(?:Incl\.?\s*VAT|incl\.?\s*vat)/i, name: 'VAT suffix (Extra.com SVG fix)' },
+    // Standard SAR patterns
     { pattern: /(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)\s*(?:SAR|SR|ر\.س|ريال|﷼)/i, name: 'SAR suffix' },
     { pattern: /(?:SAR|SR|ر\.س|ريال|﷼)\s*(\d{1,3}(?:,\d{3})*(?:\.\d{2})?)/i, name: 'SAR prefix' },
+    // Extra.com specific: Number followed by "VAT" somewhere on the line
+    { pattern: /(\d{1,3}(?:,\d{3})*)\s*(?:VAT|vat)/i, name: 'VAT indicator' },
   ];
   
   // USD patterns
@@ -1291,6 +1337,7 @@ function extractPriceFromContainerText(containerText: string, currency: string):
       const price = parseFloat(match[1].replace(/,/g, ''));
       // Validate it's a reasonable price (not storage size like 256, 512)
       if (!isNaN(price) && price >= 100 && price < 100000) {
+        console.log(`   💰 Price extracted via ${name}: ${price}`);
         return { price, method: name };
       }
     }
@@ -1946,23 +1993,55 @@ async function scrapeDirectProductPage(
     }
     
     // Price selectors for product detail pages
+    // FIX 2: Enhanced selectors for Extra.com which uses SVG for currency
     const priceSelectors = [
-      '.product-price', '.price-box .price', '[data-qa="product-price"]',
-      '.price', '[data-price-amount]', '.final-price', '.special-price .price',
-      '.c_product-price', '.price-final_price .price', 'span[data-price-type="finalPrice"]',
-      '.priceNow', '[class*="priceNow"]', 'strong[class*="amount"]'
+      // Extra.com specific selectors
+      '.c_product-price',
+      '.product-price__value',
+      '[data-qa="product-price"]',
+      // Jarir/Magento specific selectors
+      '.price-box .price',
+      '[data-price-amount]',
+      '.price-final_price .price',
+      'span[data-price-type="finalPrice"]',
+      '.product-info-price .price',
+      // Generic selectors
+      '.product-price',
+      '.price',
+      '.final-price',
+      '.special-price .price',
+      '.priceNow',
+      '[class*="priceNow"]',
+      'strong[class*="amount"]',
+      // Last resort - any element with price in class
+      '[class*="price"]'
     ];
     
     let price = 0;
+    let priceMethod = '';
+    
+    // Try CSS selectors first
     for (const selector of priceSelectors) {
       const priceEl = doc.querySelector(selector);
       if (priceEl?.textContent) {
         const extracted = extractPrice(priceEl.textContent, currency, baselineFullName);
         if (extracted && extracted.price > 0) {
           price = extracted.price;
+          priceMethod = `CSS: ${selector}`;
           console.log(`   💰 Found price: ${price} ${currency} (via ${selector})`);
           break;
         }
+      }
+    }
+    
+    // FIX 2: Fallback to text-based extraction for Extra.com SVG currency issue
+    if (price <= 0) {
+      const bodyText = doc.body?.textContent || '';
+      const fallbackPrice = extractPriceFromContainerText(bodyText, currency);
+      if (fallbackPrice && fallbackPrice.price > 0) {
+        price = fallbackPrice.price;
+        priceMethod = `Text fallback: ${fallbackPrice.method}`;
+        console.log(`   💰 Found price via text fallback: ${price} ${currency} (${fallbackPrice.method})`);
       }
     }
     
@@ -2438,8 +2517,10 @@ serve(async (req) => {
     // ========================================
     console.log(`\n🚀 Starting ${shouldGoogleOnlyScrape ? 'GOOGLE-ONLY' : 'PARALLEL'} scraping (${marketplaceKeys.length} marketplace${marketplaceKeys.length > 1 ? 's' : ''})...`);
     console.log(`   Timeout per marketplace: ${MARKETPLACE_TIMEOUT / 1000}s`);
-    if (!shouldGoogleOnlyScrape) {
-      console.log(`   Using Google-First Discovery for: extra, jarir`);
+    // Log which marketplaces use Google-First discovery
+    const googleFirstMarkets = marketplaceKeys.filter(k => MARKETPLACE_CONFIGS[k]?.useGoogleFirstDiscovery);
+    if (googleFirstMarkets.length > 0) {
+      console.log(`   Using Google-First Discovery for: ${googleFirstMarkets.join(', ')}`);
     }
     
     let scrapeResults: ScrapeResult[] = [];
@@ -2453,12 +2534,14 @@ serve(async (req) => {
         
         // Each scraper wrapped in try/catch - one failure won't stop others
         try {
-          // FIX 3: Use Google-First Discovery for Extra and Jarir
-          if (marketplaceKey === 'extra' || marketplaceKey === 'jarir') {
-            const siteDomain = marketplaceKey === 'extra' ? 'extra.com' : 'jarir.com';
+          // FIX 1: Use Google-First Discovery for marketplaces that have it enabled
+          if (config.useGoogleFirstDiscovery) {
+            const siteDomain = marketplaceKey === 'extra' ? 'extra.com' : 
+                              marketplaceKey === 'jarir' ? 'jarir.com' : 
+                              new URL(config.searchUrl).hostname;
             
             console.log(`\n${'='.repeat(60)}`);
-            console.log(`📡 [${marketplaceKey}] Using Google-First Discovery`);
+            console.log(`📡 [${marketplaceKey}] Using Google-First Discovery for ${siteDomain}`);
             console.log(`${'='.repeat(60)}`);
             
             // Step 1: Find product URL via Google
