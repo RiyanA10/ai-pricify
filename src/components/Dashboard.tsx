@@ -142,13 +142,15 @@ const Dashboard = ({
         <Loader2 className="h-8 w-8 animate-spin text-primary" />
       </div>;
   }
-  return <div className="min-h-screen bg-background">
-      {/* Header */}
-      <div className="border-b bg-card sticky top-0 z-50 shadow-sm">
-        <div className="container mx-auto px-4 py-6">
+  return (
+    <div className="min-h-screen bg-background">
+      {/* Header - Consistent styling with all pages */}
+      <header className="border-b bg-card sticky top-0 z-50 shadow-sm">
+        <div className="container mx-auto px-4 py-4">
           <div className="flex items-center justify-between">
+            {/* Logo section */}
             <div className="flex items-center gap-3">
-              <div className="w-12 h-12 bg-gradient-primary rounded-xl flex items-center justify-center shadow-glow bg-violet-600">
+              <div className="w-12 h-12 bg-primary rounded-xl flex items-center justify-center shadow-glow">
                 <span className="text-xl font-bold text-primary-foreground">AT</span>
               </div>
               <div>
@@ -158,41 +160,68 @@ const Dashboard = ({
                 </p>
               </div>
             </div>
+
+            {/* Navigation buttons with consistent sizing */}
             <div className="flex flex-wrap items-center gap-2">
-              <Button onClick={() => navigate('/products')} variant="outline" className="flex items-center gap-2">
+              <Button
+                onClick={() => navigate('/products')}
+                variant="outline"
+                size="default"
+                className="flex items-center gap-2"
+              >
                 <Package className="w-4 h-4" />
                 View All Products
               </Button>
-              <Button onClick={() => {
-              if (baselines.length > 0) {
-                navigate(`/results/${baselines[0].id}`);
-              } else {
-                toast({
-                  title: 'No Products',
-                  description: 'Please upload products first',
-                  variant: 'destructive'
-                });
-              }
-            }} variant="outline" className="flex items-center gap-2">
+              <Button
+                onClick={() => {
+                  if (baselines.length > 0) {
+                    navigate(`/results/${baselines[0].id}`);
+                  } else {
+                    toast({
+                      title: 'No Products',
+                      description: 'Please upload products first',
+                      variant: 'destructive',
+                    });
+                  }
+                }}
+                variant="outline"
+                size="default"
+                className="flex items-center gap-2"
+              >
                 <Target className="w-4 h-4" />
                 Product Analysis
               </Button>
-              <Button onClick={() => navigate('/competitive-intelligence')} variant="outline" className="flex items-center gap-2">
+              <Button
+                onClick={() => navigate('/competitive-intelligence')}
+                variant="outline"
+                size="default"
+                className="flex items-center gap-2"
+              >
                 <Target className="w-4 h-4" />
                 Competitive Intelligence
               </Button>
-              <Button onClick={onNavigateToUpload} className="flex items-center gap-2">
+              <Button
+                onClick={onNavigateToUpload}
+                variant="default"
+                size="default"
+                className="flex items-center gap-2"
+              >
                 <Upload className="w-4 h-4" />
                 Upload Products
               </Button>
-              <Button variant="outline" onClick={handleLogout} className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="default"
+                onClick={handleLogout}
+                className="flex items-center gap-2"
+              >
                 <LogOut className="w-4 h-4" />
                 Logout
               </Button>
             </div>
           </div>
         </div>
-      </div>
+      </header>
 
       <div className="container mx-auto px-4 py-8 space-y-8">
         {/* Welcome Message */}
@@ -415,6 +444,8 @@ const Dashboard = ({
             </CardContent>
           </Card>}
       </div>
-    </div>;
+    </div>
+  );
 };
+
 export default Dashboard;

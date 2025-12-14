@@ -133,14 +133,15 @@ export default function ProductListPage() {
     }
   };
 
+  // Use semantic badge variants from design system for consistent styling
   const getStatusBadge = (status: string) => {
     switch (status) {
       case 'optimized':
-        return <Badge className="bg-success/10 text-success border-success/20">✅ Optimized</Badge>;
+        return <Badge variant="success">✅ Optimized</Badge>;
       case 'action':
-        return <Badge className="bg-warning/10 text-warning border-warning/20">⚡ Action Needed</Badge>;
+        return <Badge variant="warning">⚡ Action Needed</Badge>;
       case 'processing':
-        return <Badge className="bg-muted/10 text-muted-foreground border-muted/20">🔄 Processing</Badge>;
+        return <Badge variant="muted">🔄 Processing</Badge>;
       default:
         return null;
     }

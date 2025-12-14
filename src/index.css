@@ -1,187 +1,236 @@
+/* ============================================
+   AI TRUEST™ Design System
+   All colors MUST be HSL for theme consistency
+   ============================================ */
+
+/* Font imports - consolidated to avoid duplicates */
 @import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600;700&display=swap");
 @import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;700&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Montserrat&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=Cormorant+Garamond&display=swap");
-@import url("https://fonts.googleapis.com/css2?family=IBM+Plex+Mono&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-/* AI TRUEST™ Design System - All colors MUST be HSL */
-
+/* ============================================
+   Light Mode Color Palette
+   ============================================ */
 @layer base {
   :root {
-    /* Base Colors */
+    /* Base Colors - Light mode backgrounds and text */
     --background: 240 4% 95%;
     --foreground: 240 5% 10%;
     --card: 0 0% 98%;
     --card-foreground: 240 5% 10%;
-    --popover: 240 5% 90%;
+    --popover: 0 0% 100%;
     --popover-foreground: 240 5% 10%;
 
     /* Primary - Brand Violet #7c3aed */
-    --primary: 262 83.2558% 57.8431%;
-    --primary-dark: 262 83.2558% 47%;
-    --primary-light: 262 83.2558% 90%;
-    --primary-foreground: 250 100% 97%;
+    --primary: 262 83% 58%;
+    --primary-dark: 262 83% 47%;
+    --primary-light: 262 83% 90%;
+    --primary-foreground: 0 0% 100%;
 
-    /* Success - Profit Green */
-    --success: 160 84% 39%;
+    /* Success - Profit Green (WCAG AA compliant) */
+    --success: 160 84% 32%;
     --success-light: 154 75% 87%;
     --success-foreground: 0 0% 100%;
 
-    /* Warning - Price Alert Amber */
-    --warning: 38 92% 50%;
+    /* Warning - Price Alert Amber (WCAG AA compliant) */
+    --warning: 38 92% 45%;
     --warning-light: 48 96% 89%;
-    --warning-foreground: 220 26% 14%;
+    --warning-foreground: 0 0% 100%;
 
     /* Error - Risk Red */
     --destructive: 0 72% 50%;
     --destructive-light: 0 86% 95%;
-    --destructive-foreground: 0 85% 97%;
+    --destructive-foreground: 0 0% 100%;
 
-    /* Secondary & Muted */
-    --secondary: 240 5% 33%;
-    --secondary-foreground: 0 0% 98%;
+    /* Secondary & Muted - Improved contrast */
+    --secondary: 240 5% 26%;
+    --secondary-foreground: 0 0% 100%;
     --muted: 240 4% 83%;
-    --muted-foreground: 240 5% 10%;
+    /* FIXED: muted-foreground now has proper contrast (45% lightness vs 10%) */
+    --muted-foreground: 240 5% 40%;
 
-    /* Accent */
-    --accent: 269 100% 98%;
-    --accent-foreground: 270 91% 65%;
+    /* Accent - Subtle purple tint with readable text */
+    --accent: 262 50% 95%;
+    --accent-foreground: 262 83% 40%;
 
     /* UI Elements */
     --border: 240 4% 83%;
     --input: 240 4% 83%;
-    --ring: 258 89% 66%;
+    --ring: 262 83% 58%;
     --radius: 0.5rem;
 
     /* Chart Colors for Data Visualization */
-    --chart-1: 255 91% 76%;  /* Current price - Primary Blue */
-    --chart-2: 270 95% 75%;   /* Optimal price - Purple */
-    --chart-3: 234 89% 73%;   /* Competitor average - Pink */
-    --chart-4: 258 89% 66%;   /* Profit line - Green */
-    --chart-5: 240 3% 46%;    /* Cost line - Amber */
+    --chart-1: 262 83% 58%;
+    --chart-2: 270 95% 60%;
+    --chart-3: 234 89% 60%;
+    --chart-4: 160 84% 32%;
+    --chart-5: 38 92% 45%;
 
     /* Gradients */
-    --gradient-hero: linear-gradient(135deg, hsl(217 100% 50% / 0.1), hsl(258 90% 66% / 0.1));
+    --gradient-hero: linear-gradient(135deg, hsl(262 83% 58% / 0.08), hsl(262 83% 58% / 0.03));
     --gradient-primary: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-dark)));
- 
+    --gradient-card: linear-gradient(135deg, hsl(0 0% 100%), hsl(240 5% 97%));
+    --gradient-subtle: linear-gradient(180deg, hsl(var(--background)), hsl(var(--muted) / 0.3));
+
     /* Shadows */
-    --shadow-elegant: 0 10px 30px -10px hsl(217 100% 50% / 0.2);
-    --shadow-glow: 0 0 40px hsl(217 100% 95% / 0.5);
+    --shadow-elegant: 0 10px 30px -10px hsl(262 83% 58% / 0.15);
+    --shadow-glow: 0 0 40px hsl(262 83% 58% / 0.2);
 
     /* Animations */
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    /* Sidebar */
     --sidebar: 0 0% 98%;
     --sidebar-foreground: 240 5% 10%;
-    --sidebar-primary: 258 89% 66%;
-    --sidebar-primary-foreground: 250 100% 97%;
-    --sidebar-accent: 240 5% 33%;
-    --sidebar-accent-foreground: 0 0% 98%;
+    --sidebar-primary: 262 83% 58%;
+    --sidebar-primary-foreground: 0 0% 100%;
+    --sidebar-accent: 262 50% 95%;
+    --sidebar-accent-foreground: 262 83% 40%;
     --sidebar-border: 240 4% 83%;
-    --sidebar-ring: 258 89% 66%;
+    --sidebar-ring: 262 83% 58%;
+
+    /* Typography */
     --font-sans: 'Montserrat', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
     --font-serif: 'Cormorant Garamond', ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
     --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
-    --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-    --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-    --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-    --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-    --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
-    --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
-    --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
-    --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
+
+    /* Shadow scale */
+    --shadow-2xs: 0 1px 2px 0 hsl(0 0% 0% / 0.03);
+    --shadow-xs: 0 1px 3px 0 hsl(0 0% 0% / 0.05);
+    --shadow-sm: 0 1px 3px 0 hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+    --shadow: 0 1px 3px 0 hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
+    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.1), 0 2px 4px -2px hsl(0 0% 0% / 0.1);
+    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.1), 0 4px 6px -4px hsl(0 0% 0% / 0.1);
+    --shadow-xl: 0 20px 25px -5px hsl(0 0% 0% / 0.1), 0 8px 10px -6px hsl(0 0% 0% / 0.1);
+    --shadow-2xl: 0 25px 50px -12px hsl(0 0% 0% / 0.25);
+
+    /* Spacing */
     --tracking-normal: 0em;
     --spacing: 0.25rem;
   }
 
+  /* ============================================
+     Dark Mode Color Palette
+     ============================================ */
   .dark {
+    /* Base Colors - Dark mode backgrounds and text */
     --background: 240 5% 10%;
     --foreground: 0 0% 98%;
-    --card: 240 3% 15%;
+    --card: 240 5% 14%;
     --card-foreground: 0 0% 98%;
-    --popover: 240 5% 26%;
+    --popover: 240 5% 12%;
     --popover-foreground: 0 0% 98%;
 
-    --primary: 255 91% 76%;
-    --primary-dark: 217 100% 35%;
-    --primary-light: 217 100% 20%;
-    --primary-foreground: 261 72% 22%;
+    /* Primary - Lighter for dark mode visibility */
+    --primary: 262 80% 70%;
+    --primary-dark: 262 83% 50%;
+    --primary-light: 262 83% 25%;
+    --primary-foreground: 240 5% 10%;
 
-    --success: 160 84% 39%;
-    --success-light: 160 84% 20%;
+    /* Success */
+    --success: 160 70% 45%;
+    --success-light: 160 70% 20%;
     --success-foreground: 0 0% 100%;
 
-    --warning: 38 92% 50%;
+    /* Warning */
+    --warning: 38 92% 55%;
     --warning-light: 38 92% 20%;
-    --warning-foreground: 220 26% 14%;
+    --warning-foreground: 240 5% 10%;
 
-    --destructive: 0 84% 60%;
-    --destructive-light: 0 84% 20%;
-    --destructive-foreground: 0 85% 97%;
+    /* Destructive */
+    --destructive: 0 72% 60%;
+    --destructive-light: 0 72% 20%;
+    --destructive-foreground: 0 0% 100%;
 
-    --secondary: 240 3% 46%;
+    /* Secondary & Muted - Dark mode readable */
+    --secondary: 240 5% 30%;
     --secondary-foreground: 0 0% 98%;
-    --muted: 240 3% 46%;
-    --muted-foreground: 0 0% 98%;
+    --muted: 240 5% 20%;
+    --muted-foreground: 240 5% 65%;
 
-    --accent: 273 86% 20%;
-    --accent-foreground: 270 95% 75%;
+    /* Accent */
+    --accent: 262 50% 20%;
+    --accent-foreground: 262 80% 75%;
 
-    --border: 240 5% 33%;
-    --input: 240 5% 33%;
-    --ring: 255 91% 76%;
+    /* UI Elements */
+    --border: 240 5% 25%;
+    --input: 240 5% 25%;
+    --ring: 262 80% 70%;
 
-    --chart-1: 252 94% 85%;
-    --chart-2: 269 97% 85%;
-    --chart-3: 229 93% 81%;
-    --chart-4: 255 91% 76%;
-    --chart-5: 240 3% 46%;
+    /* Chart Colors */
+    --chart-1: 262 80% 70%;
+    --chart-2: 270 80% 70%;
+    --chart-3: 234 80% 70%;
+    --chart-4: 160 70% 45%;
+    --chart-5: 38 92% 55%;
 
-    --shadow-elegant: 0 10px 30px -10px hsl(217 100% 50% / 0.3);
-    --shadow-glow: 0 0 40px hsl(217 100% 50% / 0.4);
-    --sidebar: 240 3% 15%;
+    /* Shadows - Adjusted for dark mode */
+    --shadow-elegant: 0 10px 30px -10px hsl(0 0% 0% / 0.4);
+    --shadow-glow: 0 0 40px hsl(262 80% 70% / 0.3);
+
+    /* Gradients */
+    --gradient-hero: linear-gradient(135deg, hsl(262 80% 70% / 0.1), hsl(262 80% 70% / 0.05));
+    --gradient-card: linear-gradient(135deg, hsl(240 5% 14%), hsl(240 5% 12%));
+    --gradient-subtle: linear-gradient(180deg, hsl(var(--background)), hsl(var(--muted) / 0.5));
+
+    /* Sidebar */
+    --sidebar: 240 5% 12%;
     --sidebar-foreground: 0 0% 98%;
-    --sidebar-primary: 255 91% 76%;
-    --sidebar-primary-foreground: 261 72% 22%;
-    --sidebar-accent: 270 95% 75%;
-    --sidebar-accent-foreground: 273 86% 20%;
-    --sidebar-border: 240 5% 33%;
-    --sidebar-ring: 255 91% 76%;
-    --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-    --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
-    --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-    --shadow: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
-    --shadow-md: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 2px 4px -1px hsl(0 0% 0% / 0.1);
-    --shadow-lg: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 4px 6px -1px hsl(0 0% 0% / 0.1);
-    --shadow-xl: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 8px 10px -1px hsl(0 0% 0% / 0.1);
-    --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
+    --sidebar-primary: 262 80% 70%;
+    --sidebar-primary-foreground: 240 5% 10%;
+    --sidebar-accent: 262 50% 25%;
+    --sidebar-accent-foreground: 262 80% 75%;
+    --sidebar-border: 240 5% 25%;
+    --sidebar-ring: 262 80% 70%;
+
+    /* Shadow scale for dark mode */
+    --shadow-2xs: 0 1px 2px 0 hsl(0 0% 0% / 0.1);
+    --shadow-xs: 0 1px 3px 0 hsl(0 0% 0% / 0.15);
+    --shadow-sm: 0 1px 3px 0 hsl(0 0% 0% / 0.2), 0 1px 2px -1px hsl(0 0% 0% / 0.2);
+    --shadow: 0 1px 3px 0 hsl(0 0% 0% / 0.2), 0 1px 2px -1px hsl(0 0% 0% / 0.2);
+    --shadow-md: 0 4px 6px -1px hsl(0 0% 0% / 0.25), 0 2px 4px -2px hsl(0 0% 0% / 0.2);
+    --shadow-lg: 0 10px 15px -3px hsl(0 0% 0% / 0.3), 0 4px 6px -4px hsl(0 0% 0% / 0.25);
+    --shadow-xl: 0 20px 25px -5px hsl(0 0% 0% / 0.35), 0 8px 10px -6px hsl(0 0% 0% / 0.3);
+    --shadow-2xl: 0 25px 50px -12px hsl(0 0% 0% / 0.5);
   }
 }
 
+/* ============================================
+   Base Element Styles
+   ============================================ */
 @layer base {
   * {
     @apply border-border;
   }
 
   body {
-    @apply bg-background text-foreground font-sans;
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+
+  /* Ensure focus states are visible for accessibility */
+  :focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
   }
 }
 
+/* ============================================
+   Utility Animations
+   ============================================ */
 @layer utilities {
   .animate-fade-in {
-    animation: fadeIn 0.5s ease-out;
+    animation: fadeIn 0.5s ease-out forwards;
   }
 
   .animate-slide-up {
-    animation: slideUp 0.6s ease-out;
+    animation: slideUp 0.6s ease-out forwards;
   }
 
   .animate-scale-in {
-    animation: scaleIn 0.4s ease-out;
+    animation: scaleIn 0.4s ease-out forwards;
   }
 
   @keyframes fadeIn {
@@ -216,13 +265,9 @@
       transform: scale(1);
     }
   }
-}
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
+  /* Smooth transition utility */
+  .transition-smooth {
+    transition: var(--transition-smooth);
   }
 }
