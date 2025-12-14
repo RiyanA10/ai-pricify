@@ -1299,6 +1299,7 @@ async function scrapeGoogleSERP(
  * TEXT-BASED FALLBACK: Extract price from container text using regex patterns
  * Used when CSS selectors fail due to class name changes
  * FIX 2: Enhanced for Extra.com which uses SVG for currency symbols
+ * FIX: Rejects year numbers (2018-2030) that are commonly misextracted as prices
  */
 function extractPriceFromContainerText(containerText: string, currency: string): { price: number; method: string } | null {
   if (!containerText) return null;
@@ -1335,6 +1336,13 @@ function extractPriceFromContainerText(containerText: string, currency: string):
     const match = containerText.match(pattern);
     if (match && match[1]) {
       const price = parseFloat(match[1].replace(/,/g, ''));
+      
+      // FIX: Reject year numbers (2018-2030) - common extraction error
+      if (price >= 2018 && price <= 2030) {
+        console.log(`   ⏭️ Skipping year number: ${price}`);
+        continue;
+      }
+      
       // Validate it's a reasonable price (not storage size like 256, 512)
       if (!isNaN(price) && price >= 100 && price < 100000) {
         console.log(`   💰 Price extracted via ${name}: ${price}`);
@@ -1349,21 +1357,53 @@ function extractPriceFromContainerText(containerText: string, currency: string):
 /**
  * TEXT-BASED FALLBACK: Extract product name from container
  * Looks for heading-like text or first substantial text block
+ * FIX: Rejects common garbage patterns like "About this result", info dialogs
  */
 function extractNameFromContainerText(containerText: string): string | null {
   if (!containerText) return null;
   
+  // Garbage patterns to reject - these are NOT product names
+  const garbagePatterns = [
+    /^about\s+this/i,
+    /^learn\s+more/i,
+    /^why\s+this/i,
+    /^sponsored/i,
+    /^ad\s*$/i,
+    /^see\s+more/i,
+    /^show\s+more/i,
+    /^view\s+all/i,
+    /^filter/i,
+    /^sort\s+by/i,
+    /^results?\s+for/i,
+    /^shopping/i,
+    /^compare/i,
+    /^\d+\s+results?/i,
+    /^sign\s+in/i,
+    /^menu/i,
+  ];
+  
   // Split by newlines and find first substantial line (likely the title)
   const lines = containerText.split(/[\n\r]+/).map(l => l.trim()).filter(l => l.length > 10 && l.length < 200);
   
-  // First line that looks like a product name (not price, not "from store")
+  // First line that looks like a product name
   for (const line of lines) {
-    if (!/^\d/.test(line) && !/^from\s/i.test(line) && !/^SAR|^SR|^\$/i.test(line)) {
-      return line;
-    }
+    // Skip lines starting with numbers (prices/dates)
+    if (/^\d/.test(line)) continue;
+    // Skip "from store" patterns
+    if (/^from\s/i.test(line)) continue;
+    // Skip currency prefixes
+    if (/^SAR|^SR|^\$/i.test(line)) continue;
+    // Skip garbage patterns
+    if (garbagePatterns.some(pattern => pattern.test(line))) continue;
+    // Skip very short lines or lines that are just numbers
+    if (line.length < 15) continue;
+    // Must contain at least one letter
+    if (!/[a-zA-Z]/.test(line)) continue;
+    
+    return line;
   }
   
-  return lines[0] || null;
+  return null;
 }
 
 async function scrapeGoogleShopping(
@@ -1505,14 +1545,18 @@ async function scrapeGoogleShopping(
       const container = containers[i] as any;
       const containerText = container.textContent || '';
       
-      // TRY 1: CSS Selector-based extraction
+    // TRY 1: CSS Selector-based extraction
       let name: string | null = null;
       const nameEl = trySelectOne(container, titleSelectors);
       if (nameEl) {
-        name = nameEl.textContent?.trim() || nameEl.getAttribute?.('aria-label')?.trim();
+        const rawName = nameEl.textContent?.trim() || nameEl.getAttribute?.('aria-label')?.trim();
+        // FIX: Validate extracted name is not garbage
+        if (rawName && rawName.length > 10 && !/^about\s+this/i.test(rawName) && !/^learn\s+more/i.test(rawName)) {
+          name = rawName;
+        }
       }
       
-      // TRY 2: Text-based fallback for name
+      // TRY 2: Text-based fallback for name (uses improved validation)
       if (!name) {
         name = extractNameFromContainerText(containerText);
         if (name) console.log(`   📝 Text fallback name: "${name.slice(0, 50)}..."`);
