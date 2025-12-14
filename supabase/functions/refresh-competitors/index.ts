@@ -182,6 +182,133 @@ interface MarketplaceConfig {
   useGoogleFirstDiscovery?: boolean;
 }
 
+// ========================================
+// UNIVERSAL JSON-LD EXTRACTION (Priority 1 for product pages)
+// ========================================
+
+interface UniversalProductData {
+  name?: string;
+  price?: number;
+  currency?: string;
+  availability?: string;
+  extractionMethod: string;
+}
+
+/**
+ * Universal data extractor using JSON-LD and OpenGraph
+ * Works on ANY e-commerce site that follows structured data standards
+ * Priority 1: JSON-LD (most reliable, standardized)
+ * Priority 2: OpenGraph meta tags
+ * Returns null if neither found → triggers fallback to CSS selectors
+ */
+function extractUniversalData(html: string): UniversalProductData | null {
+  // ========================================
+  // Priority 1: JSON-LD structured data
+  // ========================================
+  const jsonLdMatches = html.match(/<script[^>]*type=["']application\/ld\+json["'][^>]*>([\s\S]*?)<\/script>/gi);
+  
+  if (jsonLdMatches) {
+    for (const match of jsonLdMatches) {
+      try {
+        const jsonContent = match.replace(/<script[^>]*>|<\/script>/gi, '').trim();
+        const data = JSON.parse(jsonContent);
+        
+        // Handle @type: Product directly
+        if (data['@type'] === 'Product') {
+          const offers = data.offers;
+          const price = offers?.price || offers?.[0]?.price || offers?.lowPrice;
+          const currency = offers?.priceCurrency || offers?.[0]?.priceCurrency || 'SAR';
+          
+          if (data.name && price && !isNaN(parseFloat(price))) {
+            console.log(`   ✅ JSON-LD found: "${data.name?.slice(0, 50)}..." @ ${price} ${currency}`);
+            return {
+              name: data.name,
+              price: parseFloat(price),
+              currency: currency,
+              availability: offers?.availability,
+              extractionMethod: 'JSON-LD @type:Product'
+            };
+          }
+        }
+        
+        // Handle @graph array (common in WordPress/WooCommerce)
+        if (data['@graph'] && Array.isArray(data['@graph'])) {
+          const product = data['@graph'].find((g: any) => g['@type'] === 'Product');
+          if (product) {
+            const offers = product.offers;
+            const price = offers?.price || offers?.[0]?.price || offers?.lowPrice;
+            const currency = offers?.priceCurrency || offers?.[0]?.priceCurrency || 'SAR';
+            
+            if (product.name && price && !isNaN(parseFloat(price))) {
+              console.log(`   ✅ JSON-LD @graph found: "${product.name?.slice(0, 50)}..." @ ${price} ${currency}`);
+              return {
+                name: product.name,
+                price: parseFloat(price),
+                currency: currency,
+                availability: offers?.availability,
+                extractionMethod: 'JSON-LD @graph'
+              };
+            }
+          }
+        }
+        
+        // Handle array of items
+        if (Array.isArray(data)) {
+          const product = data.find((item: any) => item['@type'] === 'Product');
+          if (product) {
+            const offers = product.offers;
+            const price = offers?.price || offers?.[0]?.price || offers?.lowPrice;
+            const currency = offers?.priceCurrency || offers?.[0]?.priceCurrency || 'SAR';
+            
+            if (product.name && price && !isNaN(parseFloat(price))) {
+              console.log(`   ✅ JSON-LD array found: "${product.name?.slice(0, 50)}..." @ ${price} ${currency}`);
+              return {
+                name: product.name,
+                price: parseFloat(price),
+                currency: currency,
+                availability: offers?.availability,
+                extractionMethod: 'JSON-LD array'
+              };
+            }
+          }
+        }
+        
+      } catch (e) {
+        // Continue to next JSON-LD script
+      }
+    }
+  }
+  
+  // ========================================
+  // Priority 2: OpenGraph meta tags
+  // ========================================
+  const ogPriceMatch = html.match(/<meta[^>]*property=["'](?:og:price:amount|product:price:amount)["'][^>]*content=["']([^"']+)["']/i) ||
+                       html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["'](?:og:price:amount|product:price:amount)["']/i);
+  
+  if (ogPriceMatch) {
+    const ogCurrencyMatch = html.match(/<meta[^>]*property=["'](?:og:price:currency|product:price:currency)["'][^>]*content=["']([^"']+)["']/i) ||
+                            html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["'](?:og:price:currency|product:price:currency)["']/i);
+    const ogTitleMatch = html.match(/<meta[^>]*property=["']og:title["'][^>]*content=["']([^"']+)["']/i) ||
+                         html.match(/<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:title["']/i);
+    
+    const price = parseFloat(ogPriceMatch[1].replace(/,/g, ''));
+    
+    if (!isNaN(price) && price > 0) {
+      console.log(`   ✅ OpenGraph found: "${ogTitleMatch?.[1]?.slice(0, 50) || 'Unknown'}..." @ ${price} ${ogCurrencyMatch?.[1] || 'SAR'}`);
+      return {
+        name: ogTitleMatch?.[1],
+        price: price,
+        currency: ogCurrencyMatch?.[1] || 'SAR',
+        extractionMethod: 'OpenGraph meta'
+      };
+    }
+  }
+  
+  // No structured data found
+  console.log(`   ⚠️ No JSON-LD or OpenGraph data found, falling back to CSS selectors`);
+  return null;
+}
+
 const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
   'google-shopping': {
     name: 'Google Shopping',
@@ -304,6 +431,9 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
       blockAds: true,
       countryCode: 'sa'
     },
+    // FIX: Enable Google-First Discovery for Noon (direct search often times out)
+    useGoogleFirstDiscovery: true,
+    useStealthProxy: true,
     selectors: {
       containers: [
         'div[data-qa="product-card"]',
@@ -353,8 +483,7 @@ const MARKETPLACE_CONFIGS: Record<string, MarketplaceConfig> = {
       ]
     },
     // FIX 3: Wait for PRICE elements, not just containers
-    waitForSelector: '[data-qa="product-price"],.priceNow,[class*="price"],[class*="Price"]',
-    useStealthProxy: true // Saudi site - enable stealth
+    waitForSelector: '[data-qa="product-price"],.priceNow,[class*="price"],[class*="Price"]'
   },
   'extra': {
     name: 'Extra',
@@ -1930,8 +2059,19 @@ async function findProductLinkViaGoogle(
   const scrapingbeeApiKey = Deno.env.get('SCRAPINGBEE_API_KEY');
   if (!scrapingbeeApiKey) return null;
   
-  const query = `site:${siteDomain} ${productName}`;
-  console.log(`🔎 Google Dorking: "${query}"`);
+  // FIX: Add exclusions to Google Dork query for better results
+  const lowerName = productName.toLowerCase();
+  const exclusions: string[] = [];
+  
+  // Add noise word exclusions if not in product name
+  for (const word of NOISE_WORDS.slice(0, 10)) { // Limit to top 10 exclusions
+    if (!lowerName.includes(word)) {
+      exclusions.push(`-${word}`);
+    }
+  }
+  
+  const query = `site:${siteDomain} ${productName} ${exclusions.join(' ')}`;
+  console.log(`🔎 Google Dorking: "${query.slice(0, 80)}..."`);
   
   const googleUrl = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
   
@@ -2016,6 +2156,38 @@ async function scrapeDirectProductPage(
     const html = await response.text();
     console.log(`   ✅ Received ${html.length} chars from product page`);
     
+    // ========================================
+    // PRIORITY 1: Try JSON-LD/OpenGraph extraction first (most reliable)
+    // ========================================
+    const universalData = extractUniversalData(html);
+    
+    if (universalData && universalData.name && universalData.price && universalData.price > 0) {
+      // Validate price
+      if (!isValidPrice(universalData.price, baselinePrice, costPrice)) {
+        console.log(`   ⚠️ JSON-LD price ${universalData.price} failed validation, trying CSS fallback`);
+      } else {
+        const normalizedBaseline = normalizeProductName(baselineFullName);
+        const normalizedCompetitor = normalizeProductName(universalData.name);
+        const similarity = calculateSimilarity(normalizedBaseline, normalizedCompetitor);
+        
+        console.log(`   📊 JSON-LD Product: "${universalData.name.slice(0, 50)}..." | Price: ${universalData.price} | Similarity: ${(similarity * 100).toFixed(0)}%`);
+        
+        return {
+          name: universalData.name,
+          price: universalData.price,
+          similarity: similarity,
+          priceRatio: universalData.price / baselinePrice,
+          url: url,
+          sourceStore: siteName
+        };
+      }
+    }
+    
+    // ========================================
+    // PRIORITY 2: Fall back to CSS selector extraction
+    // ========================================
+    console.log(`   ⚠️ JSON-LD failed, falling back to CSS selectors...`);
+    
     const parser = new DOMParser();
     const doc = parser.parseFromString(html, 'text/html');
     if (!doc) return null;
@@ -2049,14 +2221,16 @@ async function scrapeDirectProductPage(
       '.price-final_price .price',
       'span[data-price-type="finalPrice"]',
       '.product-info-price .price',
+      // Noon specific selectors
+      '[class*="priceNow"]',
+      'span[class*="Price_now"]',
+      'strong[class*="amount"]',
       // Generic selectors
       '.product-price',
       '.price',
       '.final-price',
       '.special-price .price',
       '.priceNow',
-      '[class*="priceNow"]',
-      'strong[class*="amount"]',
       // Last resort - any element with price in class
       '[class*="price"]'
     ];
