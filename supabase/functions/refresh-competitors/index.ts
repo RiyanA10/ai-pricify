@@ -1221,10 +1221,20 @@ function filterLowestPriceOutliers(products: ScrapedProduct[]): ScrapedProduct[]
 // ========================================
 
 const NON_RETAILER_DOMAINS = [
+  // Tech review/info sites
   'gsmarena.com', 'samsung.com', 'apple.com', 'phonearena.com',
   'techradar.com', 'cnet.com', 'youtube.com', 'wikipedia.org',
+  // Social media
   'reddit.com', 'twitter.com', 'facebook.com', 'instagram.com',
-  'tiktok.com', 'quora.com', 'alibaba.com', 'aliexpress.com', 'made-in-china.com'
+  'tiktok.com', 'quora.com',
+  // Wholesale/China sites
+  'alibaba.com', 'aliexpress.com', 'made-in-china.com',
+  // Price comparison/aggregator sites (don't sell products directly)
+  'pricena.com', 'pricearea.com', 'pricefrom.com', 'yaoota.com',
+  'pricer.sa', 'pricerunner.com', 'idealo.com',
+  // Classified ads sites (used items, unreliable pricing)
+  'opensooq.com', 'haraj.com.sa', 'haraj.com', 'olx.com', 'dubizzle.com',
+  'expatriates.com', 'mstaml.com', 'syarah.com'
 ];
 
 function isNonRetailerDomain(url: string): boolean {
@@ -1416,7 +1426,7 @@ async function scrapeGoogleSERP(
     }
     
     console.log(`✓ Extracted ${products.length} products from Google SERP`);
-    return products.sort((a, b) => b.similarity - a.similarity).slice(0, 30);
+    return products.sort((a, b) => b.similarity - a.similarity).slice(0, 50);
     
   } catch (error: any) {
     console.error(`❌ Google SERP error:`, error.message);
@@ -1670,7 +1680,7 @@ async function scrapeGoogleShopping(
       'b',
     ];
     
-    for (let i = 0; i < Math.min(containers.length, 40); i++) {
+    for (let i = 0; i < Math.min(containers.length, 60); i++) {
       const container = containers[i] as any;
       const containerText = container.textContent || '';
       
@@ -1777,7 +1787,7 @@ async function scrapeGoogleShopping(
       console.log(`   💰 Price range: ${Math.min(...products.map(p => p.price))} - ${Math.max(...products.map(p => p.price))} ${currency}`);
     }
     
-    return products.sort((a, b) => b.similarity - a.similarity).slice(0, 35);
+    return products.sort((a, b) => b.similarity - a.similarity).slice(0, 50);
     
   } catch (error: any) {
     console.error(`❌ Google Shopping error:`, error.message);
@@ -2041,7 +2051,7 @@ async function scrapeMarketplacePrices(
   
   return allProducts
     .sort((a, b) => b.similarity - a.similarity)
-    .slice(0, 30);
+    .slice(0, 40);
 }
 
 // ========================================
