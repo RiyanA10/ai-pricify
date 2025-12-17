@@ -18,27 +18,34 @@ serve(async (req) => {
   }
 
   try {
-    const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
+    // Check if we have auth header - if not, this might be triggered from submit-product
+    const authHeader = req.headers.get('Authorization');
+    let supabase;
+    let userId: string | null = null;
+    
+    if (authHeader) {
+      // Authenticated request - verify user
+      const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+      supabase = createClient(supabaseUrl, supabaseKey, {
+        global: { headers: { Authorization: authHeader } }
       });
+
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (!authError && user) {
+        userId = user.id;
+      }
     }
+    
+    // Always use service role for operations (needed for guest submissions)
+    supabase = createClient(supabaseUrl, supabaseServiceKey, {
+      auth: {
+        autoRefreshToken: false,
+        persistSession: false
+      }
+    });
 
     const body = await req.json();
     const validation = RequestSchema.safeParse(body);
@@ -52,7 +59,7 @@ serve(async (req) => {
 
     const { baseline_id } = validation.data;
 
-    console.log('Starting enhanced pricing processing');
+    console.log('Starting enhanced pricing processing for baseline:', baseline_id);
 
     const { data: baseline, error: baselineError } = await supabase
       .from('product_baselines')
@@ -67,18 +74,21 @@ serve(async (req) => {
       });
     }
 
-    if (baseline.merchant_id !== user.id) {
+    // Check ownership only if both userId and merchant_id exist
+    if (userId && baseline.merchant_id && baseline.merchant_id !== userId) {
       return new Response(JSON.stringify({ error: 'Forbidden: Not your baseline' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    await supabase.from('processing_status').insert({
+    console.log(`Processing baseline: ${baseline_id} (${baseline.merchant_id ? 'authenticated' : 'guest'})`);
+
+    await supabase.from('processing_status').upsert({
       baseline_id,
       status: 'processing',
       current_step: 'fetching_inflation'
-    });
+    }, { onConflict: 'baseline_id' });
 
     const backgroundTask = (async () => {
       try {

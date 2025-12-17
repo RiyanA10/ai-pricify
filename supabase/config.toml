@@ -1,1 +1,4 @@
 project_id = "lhqljifpaiplmagmgmth"
+
+[functions.submit-product]
+verify_jwt = false

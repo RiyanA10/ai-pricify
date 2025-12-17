@@ -102,7 +102,7 @@ export type Database = {
           last_updated: string | null
           lowest_price: number | null
           marketplace: string
-          merchant_id: string
+          merchant_id: string | null
           products_found: number | null
         }
         Insert: {
@@ -115,7 +115,7 @@ export type Database = {
           last_updated?: string | null
           lowest_price?: number | null
           marketplace: string
-          merchant_id: string
+          merchant_id?: string | null
           products_found?: number | null
         }
         Update: {
@@ -128,7 +128,7 @@ export type Database = {
           last_updated?: string | null
           lowest_price?: number | null
           marketplace?: string
-          merchant_id?: string
+          merchant_id?: string | null
           products_found?: number | null
         }
         Relationships: [
@@ -150,7 +150,7 @@ export type Database = {
           id: string
           is_cached: boolean | null
           marketplace: string
-          merchant_id: string
+          merchant_id: string | null
           price: number
           price_ratio: number
           product_name: string
@@ -166,7 +166,7 @@ export type Database = {
           id?: string
           is_cached?: boolean | null
           marketplace: string
-          merchant_id: string
+          merchant_id?: string | null
           price: number
           price_ratio: number
           product_name: string
@@ -182,7 +182,7 @@ export type Database = {
           id?: string
           is_cached?: boolean | null
           marketplace?: string
-          merchant_id?: string
+          merchant_id?: string | null
           price?: number
           price_ratio?: number
           product_name?: string
@@ -322,7 +322,7 @@ export type Database = {
           market_average: number | null
           market_highest: number | null
           market_lowest: number | null
-          merchant_id: string
+          merchant_id: string | null
           predicted_sales: number
           profit_accuracy_score: number | null
           sales_accuracy_score: number | null
@@ -340,7 +340,7 @@ export type Database = {
           market_average?: number | null
           market_highest?: number | null
           market_lowest?: number | null
-          merchant_id: string
+          merchant_id?: string | null
           predicted_sales: number
           profit_accuracy_score?: number | null
           sales_accuracy_score?: number | null
@@ -358,7 +358,7 @@ export type Database = {
           market_average?: number | null
           market_highest?: number | null
           market_lowest?: number | null
-          merchant_id?: string
+          merchant_id?: string | null
           predicted_sales?: number
           profit_accuracy_score?: number | null
           sales_accuracy_score?: number | null
@@ -393,7 +393,7 @@ export type Database = {
           market_average: number | null
           market_highest: number | null
           market_lowest: number | null
-          merchant_id: string
+          merchant_id: string | null
           optimal_price: number
           position_vs_market: number | null
           profit_increase_amount: number | null
@@ -418,7 +418,7 @@ export type Database = {
           market_average?: number | null
           market_highest?: number | null
           market_lowest?: number | null
-          merchant_id: string
+          merchant_id?: string | null
           optimal_price: number
           position_vs_market?: number | null
           profit_increase_amount?: number | null
@@ -443,7 +443,7 @@ export type Database = {
           market_average?: number | null
           market_highest?: number | null
           market_lowest?: number | null
-          merchant_id?: string
+          merchant_id?: string | null
           optimal_price?: number
           position_vs_market?: number | null
           profit_increase_amount?: number | null
@@ -507,7 +507,7 @@ export type Database = {
           current_quantity: number
           deleted_at: string | null
           id: string
-          merchant_id: string
+          merchant_id: string | null
           product_name: string
         }
         Insert: {
@@ -520,7 +520,7 @@ export type Database = {
           current_quantity: number
           deleted_at?: string | null
           id?: string
-          merchant_id: string
+          merchant_id?: string | null
           product_name: string
         }
         Update: {
@@ -533,7 +533,7 @@ export type Database = {
           current_quantity?: number
           deleted_at?: string | null
           id?: string
-          merchant_id?: string
+          merchant_id?: string | null
           product_name?: string
         }
         Relationships: []

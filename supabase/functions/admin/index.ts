@@ -110,7 +110,9 @@ serve(async (req) => {
         const { data: authUsers } = await supabase.auth.admin.listUsers();
 
         const products = baselines?.map(baseline => {
-          const user = authUsers?.users.find(u => u.id === baseline.merchant_id);
+          const user = baseline.merchant_id 
+            ? authUsers?.users.find(u => u.id === baseline.merchant_id)
+            : null;
           return {
             id: baseline.id,
             product_name: baseline.product_name,
@@ -119,7 +121,7 @@ serve(async (req) => {
             category: baseline.category,
             created_at: baseline.created_at || '',
             merchant_id: baseline.merchant_id,
-            merchant_email: user?.email || 'Unknown',
+            merchant_email: baseline.merchant_id ? (user?.email || 'Unknown User') : 'Guest',
           };
         }) || [];
 
@@ -323,7 +325,9 @@ serve(async (req) => {
           .select('*');
 
         const productDetails = baselines?.map(baseline => {
-          const merchant = authUsers?.users.find(u => u.id === baseline.merchant_id);
+          const merchant = baseline.merchant_id 
+            ? authUsers?.users.find(u => u.id === baseline.merchant_id)
+            : null;
           const competitors = allCompetitors?.filter(c => c.baseline_id === baseline.id) || [];
           const result = pricingResults?.find(r => r.baseline_id === baseline.id);
 
@@ -347,7 +351,7 @@ serve(async (req) => {
               currency: baseline.currency,
               category: baseline.category,
               created_at: baseline.created_at,
-              merchant_email: merchant?.email || 'Unknown',
+              merchant_email: baseline.merchant_id ? (merchant?.email || 'Unknown User') : 'Guest',
             },
             totalCompetitors: competitors.length,
             usedCompetitors: usedCompetitors.map(c => ({
