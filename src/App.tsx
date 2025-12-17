@@ -12,7 +12,6 @@ import DebugZenrowsPage from "./pages/DebugZenrowsPage";
 import NotFound from "./pages/NotFound";
 import AuthPage from "./pages/AuthPage";
 import AdminPage from "./pages/AdminPage";
-import ProtectedRoute from "./components/ProtectedRoute";
 import AdminRoute from "./components/AdminRoute";
 
 const queryClient = new QueryClient();
@@ -25,12 +24,12 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/auth" element={<AuthPage />} />
-          <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-          <Route path="/products" element={<ProtectedRoute><ProductListPage /></ProtectedRoute>} />
-          <Route path="/competitive-intelligence" element={<ProtectedRoute><CompetitiveIntelligencePage /></ProtectedRoute>} />
-          <Route path="/debug-zenrows" element={<ProtectedRoute><DebugZenrowsPage /></ProtectedRoute>} />
-          <Route path="/processing/:baselineId" element={<ProtectedRoute><ProcessingPage /></ProtectedRoute>} />
-          <Route path="/results/:baselineId" element={<ProtectedRoute><ResultsPage /></ProtectedRoute>} />
+          <Route path="/" element={<Index />} />
+          <Route path="/products" element={<ProductListPage />} />
+          <Route path="/competitive-intelligence" element={<CompetitiveIntelligencePage />} />
+          <Route path="/debug-zenrows" element={<DebugZenrowsPage />} />
+          <Route path="/processing/:baselineId" element={<ProcessingPage />} />
+          <Route path="/results/:baselineId" element={<ResultsPage />} />
           <Route path="/admin" element={<AdminRoute><AdminPage /></AdminRoute>} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

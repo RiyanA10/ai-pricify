@@ -1,22 +1,38 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Dashboard from '@/components/Dashboard';
 import { UploadPage } from '@/components/UploadPage';
 import { supabase } from '@/integrations/supabase/client';
 import { Button } from '@/components/ui/button';
-import { LogOut, Home, Upload } from 'lucide-react';
+import { LogOut, LogIn, Home, Upload } from 'lucide-react';
+import { User } from '@supabase/supabase-js';
 
 const Index = () => {
   const navigate = useNavigate();
+  const [user, setUser] = useState<User | null>(null);
 
   // Check URL parameters for initial view
   const searchParams = new URLSearchParams(window.location.search);
   const initialView = searchParams.get('view') === 'upload' ? 'upload' : 'dashboard';
   const [currentView, setCurrentView] = useState<'dashboard' | 'upload'>(initialView);
 
+  useEffect(() => {
+    // Check current auth state
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null);
+    });
+
+    return () => subscription.unsubscribe();
+  }, []);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate('/auth');
+    setUser(null);
   };
 
   const handleViewChange = (view: 'dashboard' | 'upload') => {
@@ -61,14 +77,25 @@ const Index = () => {
                   </Button>
                 </nav>
 
-                <Button
-                  variant="outline"
-                  onClick={handleLogout}
-                  className="flex items-center gap-2"
-                >
-                  <LogOut className="w-4 h-4" />
-                  Logout
-                </Button>
+                {user ? (
+                  <Button
+                    variant="outline"
+                    onClick={handleLogout}
+                    className="flex items-center gap-2"
+                  >
+                    <LogOut className="w-4 h-4" />
+                    Logout
+                  </Button>
+                ) : (
+                  <Button
+                    variant="outline"
+                    onClick={() => navigate('/auth')}
+                    className="flex items-center gap-2"
+                  >
+                    <LogIn className="w-4 h-4" />
+                    Sign In
+                  </Button>
+                )}
               </div>
             </div>
           </header>

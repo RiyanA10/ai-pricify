@@ -1,13 +1,14 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { TrendingUp, DollarSign, Package, AlertCircle, ArrowUp, LogOut, Upload, Target, Loader2 } from 'lucide-react';
+import { TrendingUp, DollarSign, Package, AlertCircle, ArrowUp, LogOut, LogIn, Upload, Target, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { supabase } from '@/integrations/supabase/client';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { useToast } from '@/hooks/use-toast';
 import { formatNumber, formatPrice } from '@/lib/utils';
+import { User } from '@supabase/supabase-js';
 interface DashboardProps {
   onNavigateToUpload: () => void;
 }
@@ -31,8 +32,22 @@ const Dashboard = ({
   const [chartData, setChartData] = useState<any[]>([]);
   const [baselines, setBaselines] = useState<any[]>([]);
   const [pricingResults, setPricingResults] = useState<any[]>([]);
+  const [user, setUser] = useState<User | null>(null);
+  
   useEffect(() => {
+    // Check current auth state
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      setUser(user);
+    });
+
+    // Listen for auth changes
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      setUser(session?.user ?? null);
+    });
+
     fetchDashboardData();
+
+    return () => subscription.unsubscribe();
   }, []);
   const fetchDashboardData = async () => {
     try {
@@ -135,7 +150,7 @@ const Dashboard = ({
   };
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate('/auth');
+    setUser(null);
   };
   if (loading) {
     return <div className="min-h-screen bg-background flex items-center justify-center">
@@ -209,15 +224,27 @@ const Dashboard = ({
                 <Upload className="w-4 h-4" />
                 Upload Products
               </Button>
-              <Button
-                variant="outline"
-                size="default"
-                onClick={handleLogout}
-                className="flex items-center gap-2"
-              >
-                <LogOut className="w-4 h-4" />
-                Logout
-              </Button>
+              {user ? (
+                <Button
+                  variant="outline"
+                  size="default"
+                  onClick={handleLogout}
+                  className="flex items-center gap-2"
+                >
+                  <LogOut className="w-4 h-4" />
+                  Logout
+                </Button>
+              ) : (
+                <Button
+                  variant="outline"
+                  size="default"
+                  onClick={() => navigate('/auth')}
+                  className="flex items-center gap-2"
+                >
+                  <LogIn className="w-4 h-4" />
+                  Sign In
+                </Button>
+              )}
             </div>
           </div>
         </div>
