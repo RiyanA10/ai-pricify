@@ -11,9 +11,9 @@ const Index = () => {
   const navigate = useNavigate();
   const [user, setUser] = useState<User | null>(null);
 
-  // Check URL parameters for initial view
+  // Check URL parameters for initial view - default to upload (search page)
   const searchParams = new URLSearchParams(window.location.search);
-  const initialView = searchParams.get('view') === 'upload' ? 'upload' : 'dashboard';
+  const initialView = searchParams.get('view') === 'dashboard' ? 'dashboard' : 'upload';
   const [currentView, setCurrentView] = useState<'dashboard' | 'upload'>(initialView);
 
   useEffect(() => {
