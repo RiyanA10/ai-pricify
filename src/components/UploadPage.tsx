@@ -135,16 +135,6 @@ export const UploadPage = () => {
   };
 
   const handleSubmit = async () => {
-    if (!user) {
-      toast({
-        title: 'Authentication required',
-        description: 'Please sign in to continue',
-        variant: 'destructive',
-      });
-      navigate('/auth');
-      return;
-    }
-
     setIsProcessing(true);
 
     try {
@@ -160,7 +150,6 @@ export const UploadPage = () => {
       }
 
       const productData = {
-        merchant_id: user.id,
         product_name: formData.product_name,
         category: formData.category,
         current_price: Number(formData.current_price),
@@ -170,25 +159,19 @@ export const UploadPage = () => {
         base_elasticity: CATEGORY_ELASTICITY[formData.category],
       };
 
-      const { data: insertedProduct, error: insertError } = await supabase
-        .from('product_baselines')
-        .insert(productData)
-        .select()
-        .single();
-
-      if (insertError) throw insertError;
-
-      // Trigger processing
-      await supabase.functions.invoke('process-pricing', {
-        body: { baseline_id: insertedProduct.id }
+      // Use submit-product edge function (works for both guests and authenticated users)
+      const { data, error } = await supabase.functions.invoke('submit-product', {
+        body: productData
       });
+
+      if (error) throw error;
 
       toast({
         title: 'Success!',
         description: 'Product uploaded and processing started',
       });
 
-      navigate(`/processing/${insertedProduct.id}`);
+      navigate(`/processing/${data.baseline_id}`);
 
     } catch (error) {
       console.error('Error submitting form:', error);
@@ -220,15 +203,26 @@ export const UploadPage = () => {
             </div>
             <h1 className="text-3xl font-bold text-primary">AI TRUEST</h1>
           </div>
-          <Button
-            onClick={handleSignOut}
-            variant="ghost"
-            size="sm"
-            className="text-muted-foreground hover:text-foreground"
-          >
-            <LogOut className="w-4 h-4 mr-2" />
-            Sign Out
-          </Button>
+          {user ? (
+            <Button
+              onClick={handleSignOut}
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-foreground"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Sign Out
+            </Button>
+          ) : (
+            <Button
+              onClick={() => navigate('/auth')}
+              variant="ghost"
+              size="sm"
+              className="text-muted-foreground hover:text-foreground"
+            >
+              Sign In
+            </Button>
+          )}
         </div>
 
         {/* Progress Dots */}
