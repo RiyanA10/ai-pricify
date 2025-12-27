@@ -104,35 +104,42 @@ serve(async (req) => {
           .update({ current_step: 'fetching_competitors' })
           .eq('baseline_id', baseline_id);
 
-        console.log('Triggering competitor scraping...');
+        console.log('Triggering competitor scraping via direct HTTP...');
         
-        // FIX 1: Retry logic with exponential backoff for refresh-competitors
+        // Use direct HTTP call with service role key to avoid JWT issues
         let refreshSuccess = false;
         let refreshRetries = 3;
-        let lastRefreshError: any = null;
         
         while (!refreshSuccess && refreshRetries > 0) {
           try {
-            const { data, error: refreshError } = await supabase.functions.invoke(
-              'refresh-competitors',
-              { body: { baseline_id } }
+            const response = await fetch(
+              `${supabaseUrl}/functions/v1/refresh-competitors`,
+              {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/json',
+                  'Authorization': `Bearer ${supabaseServiceKey}`,
+                  'apikey': supabaseServiceKey
+                },
+                body: JSON.stringify({ baseline_id })
+              }
             );
 
-            if (refreshError) {
-              lastRefreshError = refreshError;
-              console.error(`❌ refresh-competitors error (attempt ${4 - refreshRetries}/3):`, refreshError);
+            if (!response.ok) {
+              const errorText = await response.text();
+              console.error(`❌ refresh-competitors HTTP error (attempt ${4 - refreshRetries}/3): ${response.status} - ${errorText}`);
               refreshRetries--;
               if (refreshRetries > 0) {
-                const waitTime = (4 - refreshRetries) * 3000; // 3s, 6s, 9s backoff
+                const waitTime = (4 - refreshRetries) * 3000;
                 console.log(`⏳ Waiting ${waitTime}ms before retry...`);
                 await new Promise(r => setTimeout(r, waitTime));
               }
             } else {
+              const data = await response.json();
               refreshSuccess = true;
-              console.log('✅ Competitor scraping completed successfully');
+              console.log('✅ Competitor scraping completed successfully:', data?.message || 'OK');
             }
           } catch (e: any) {
-            lastRefreshError = e;
             console.error(`❌ refresh-competitors exception (attempt ${4 - refreshRetries}/3):`, e.message);
             refreshRetries--;
             if (refreshRetries > 0) {
