@@ -1,4 +1,5 @@
-// Version: 2.0.2 - JWT verification disabled, direct HTTP call support
+// Version: 2.0.4 - FORCE COMPLETE REDEPLOY - JWT verification MUST be disabled
+// Deployment timestamp: 2025-01-27T12:00:00Z
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { DOMParser } from 'https://deno.land/x/deno_dom@v0.1.38/deno-dom-wasm.ts';
@@ -2531,33 +2532,55 @@ const RequestSchema = z.object({
 });
 
 serve(async (req) => {
+  console.log('=== refresh-competitors v2.0.4 STARTED ===');
+  console.log('JWT verification: DISABLED (config.toml)');
+  
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
-    }
-
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!;
-    const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
-    const supabase = createClient(supabaseUrl, supabaseKey, {
-      global: { headers: { Authorization: authHeader } }
-    });
-
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return new Response(JSON.stringify({ error: 'Unauthorized' }), {
-        status: 401,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+    const serviceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY')!;
+    
+    // Check if this is a service role call (from process-pricing)
+    const isServiceRoleCall = authHeader?.includes(serviceRoleKey);
+    
+    console.log(`Auth type: ${isServiceRoleCall ? 'SERVICE_ROLE' : 'USER'}`);
+    
+    // Use service role key for internal calls, otherwise use anon key with user auth
+    let supabase;
+    let merchantId: string | null = null;
+    
+    if (isServiceRoleCall) {
+      // Internal call from process-pricing - use service role
+      supabase = createClient(supabaseUrl, serviceRoleKey);
+      console.log('✓ Using service role authentication');
+    } else {
+      // User call - require valid user authentication
+      if (!authHeader) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      
+      const supabaseKey = Deno.env.get('SUPABASE_ANON_KEY')!;
+      supabase = createClient(supabaseUrl, supabaseKey, {
+        global: { headers: { Authorization: authHeader } }
       });
-    }
 
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        return new Response(JSON.stringify({ error: 'Unauthorized' }), {
+          status: 401,
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+        });
+      }
+      merchantId = user.id;
+      console.log(`✓ User authenticated: ${user.email}`);
+    }
     const body = await req.json();
     const validation = RequestSchema.safeParse(body);
     
@@ -2583,12 +2606,16 @@ serve(async (req) => {
       });
     }
 
-    if (baseline.merchant_id !== user.id) {
+    // Only check ownership for user calls, not service role calls
+    if (merchantId && baseline.merchant_id !== merchantId) {
       return new Response(JSON.stringify({ error: 'Forbidden' }), {
         status: 403,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+    
+    // Use baseline's merchant_id for service role calls
+    const effectiveMerchantId = merchantId || baseline.merchant_id;
 
     console.log('🚀 Refreshing competitor prices');
     console.log(`   Product: "${baseline.product_name}"`);
@@ -2621,7 +2648,7 @@ serve(async (req) => {
       const { data: recentBaselines, error: baselinesError } = await supabase
         .from('product_baselines')
         .select('id, product_name, created_at')
-        .eq('merchant_id', user.id)
+        .eq('merchant_id', effectiveMerchantId)
         .neq('id', baseline_id) // Exclude current baseline
         .is('deleted_at', null)
         .gte('created_at', cacheAgeDate.toISOString())
