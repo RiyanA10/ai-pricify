@@ -2,3 +2,6 @@ project_id = "lhqljifpaiplmagmgmth"
 
 [functions.submit-product]
 verify_jwt = false
+
+[functions.refresh-competitors]
+verify_jwt = false
